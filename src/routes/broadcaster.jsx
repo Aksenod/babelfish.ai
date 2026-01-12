@@ -17,7 +17,7 @@ const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
 const TIMESLICE_MS = 2000; // Request data every 2 seconds
 
 // Voice Activity Detection threshold
-const VAD_THRESHOLD = 0.001; // Reduced from 0.01 to be more sensitive
+const VAD_THRESHOLD = 0.0001; // Very sensitive threshold
 
 function App({ supabase }) {
   // Create a reference to the worker object.
@@ -302,12 +302,12 @@ function App({ supabase }) {
         .then((stream) => {
           setStream(stream);
 
-          // Get supported MIME types - prioritize most compatible formats
+          // Get supported MIME types - prioritize WAV for better compatibility
           const mimeTypes = [
+            'audio/wav',
             'audio/webm',
             'audio/webm;codecs=opus',
             'audio/ogg;codecs=opus',
-            'audio/wav',
             'audio/mp4'
           ];
           
@@ -419,37 +419,16 @@ function App({ supabase }) {
           } catch (primaryError) {
             console.warn('Primary decoding failed, trying alternatives:', primaryError.message);
             
-            // Check MIME type for specific handling
-            if (mimeTypeRef.current.includes('webm') || mimeTypeRef.current.includes('opus')) {
-              try {
-                // For WebM/Opus, try to extract raw data with fresh context
-                const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
-                audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
-                await tempContext.close();
-              } catch (webmError) {
-                console.warn('WebM/Opus decoding failed:', webmError.message);
-                audioBuffer = createTestAudioBuffer();
-              }
-            } else if (mimeTypeRef.current.includes('wav')) {
-              try {
-                // For WAV formats, try with different approach
-                const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
-                audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
-                await tempContext.close();
-              } catch (wavError) {
-                console.warn('WAV decoding failed:', wavError.message);
-                audioBuffer = createTestAudioBuffer();
-              }
-            } else {
-              // For other formats, try generic approach
-              try {
-                const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
-                audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
-                await tempContext.close();
-              } catch (genericError) {
-                console.warn('Generic decoding failed:', genericError.message);
-                audioBuffer = createTestAudioBuffer();
-              }
+            // Create a fresh copy of the arrayBuffer to avoid detached issues
+            const freshBuffer = arrayBuffer.slice(0);
+            
+            try {
+              const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
+              audioBuffer = await tempContext.decodeAudioData(freshBuffer);
+              await tempContext.close();
+            } catch (fallbackError) {
+              console.warn('Fallback decoding failed:', fallbackError.message);
+              audioBuffer = createTestAudioBuffer();
             }
           }
           
