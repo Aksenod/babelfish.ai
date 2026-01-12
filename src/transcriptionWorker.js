@@ -3,7 +3,6 @@ import {
     AutoTokenizer,
     AutoProcessor,
     WhisperForConditionalGeneration,
-    TextStreamer,
     full,
 } from '@xenova/transformers';
 
@@ -70,34 +69,12 @@ async function generate({ audio, language }) {
     // Retrieve the text-generation pipeline.
     const [tokenizer, processor, model] = await AutomaticSpeechRecognitionPipeline.getInstance();
 
-    let startTime;
-    let numTokens = 0;
-    const callback_function = (output) => {
-        startTime ??= performance.now();
-
-        let tps;
-        if (numTokens++ > 0) {
-            tps = numTokens / (performance.now() - startTime) * 1000;
-        }
-        self.postMessage({
-            status: 'update',
-            output, tps, numTokens,
-        });
-    }
-
-    const streamer = new TextStreamer(tokenizer, {
-        skip_prompt: true,
-        skip_special_tokens: true,
-        callback_function,
-    });
-
     const inputs = await processor(audio);
 
     const outputs = await model.generate({
         ...inputs,
         max_new_tokens: MAX_NEW_TOKENS,
         language,
-        streamer,
         // Optimized parameters for faster processing
         num_beams: 1, // Use greedy decoding instead of beam search
         temperature: 1.0, // Lower temperature for more deterministic output
