@@ -54,6 +54,9 @@ function App({ supabase }) {
   const [processingTime, setProcessingTime] = useState(null);
   const [voiceDetected, setVoiceDetected] = useState(false);
 
+  // UI state
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+
   // Broadcast
   const channelId = useRef(randomId());
   const channel = supabase.channel(channelId.current);
@@ -399,101 +402,113 @@ function App({ supabase }) {
 
   return IS_WEBGPU_AVAILABLE ? (
     <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header with controls */}
-      <div className="bg-white shadow-sm border-b border-gray-200 p-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col items-center mb-1 text-center">
-            <h1 className="text-3xl font-bold mb-1 text-gray-800">
-              Babelfish.ai - Broadcaster
-            </h1>
-            <h2 className="text-lg text-gray-600 mb-4">
-              Real-time speech recognition & AI translation
-            </h2>
-          </div>
-
-          {status === null && (
-            <div className="text-center mb-4">
-              <p className="max-w-[600px] mx-auto text-gray-600 mb-4">
-                You are about to load{' '}
+      {/* Collapsible Header with controls */}
+      <div className={`${isHeaderCollapsed ? 'h-16' : 'h-auto'} bg-white shadow-sm border-b border-gray-200 transition-all duration-300`}>
+        <div className="max-w-7xl mx-auto p-4">
+          {/* Header toggle button */}
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-2xl font-bold text-gray-800">
+                Babelfish.ai - Broadcaster
+              </h1>
+              {status === 'ready' && (
+                <button
+                  onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
+                  className="text-gray-500 hover:text-gray-700 p-2 rounded hover:bg-gray-100 transition-colors"
+                  title={isHeaderCollapsed ? "Expand header" : "Collapse header"}
+                >
+                  {isHeaderCollapsed ? '▼' : '▲'}
+                </button>
+              )}
+            </div>
+            {status === 'ready' && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">
+                  Channel: <span className="font-mono bg-gray-100 px-2 py-1 rounded text-blue-600">{channelId.current}</span>
+                </span>
                 <a
-                  href="https://huggingface.co/onnx-community/whisper-base"
+                  href={`${import.meta.env.BASE_URL}#/receiver/${channelId.current}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="font-medium underline text-blue-600"
+                  className="inline-block border px-3 py-1 rounded-lg bg-green-500 text-white hover:bg-green-600 font-medium text-sm"
                 >
-                  whisper-base
+                  Share Link
                 </a>
-                , a 73 million parameter speech recognition model optimized for web. 
-                Once downloaded, the model (~200MB) will be cached and reused.
-              </p>
-              <button
-                className="border px-6 py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:bg-blue-200 disabled:cursor-not-allowed select-none font-medium text-lg"
-                onClick={() => {
-                  worker.current.postMessage({ type: 'load' });
-                  setStatus('loading');
-                }}
-                disabled={status !== null}
-              >
-                START TRANSCRIBING
-              </button>
-            </div>
-          )}
-
-          {status === 'ready' && (
-            <div className="text-center mb-4">
-              <p className="text-gray-600 mb-2">
-                Channel ID:{' '}
-                <pre className="inline-block bg-gray-100 px-3 py-1 rounded-md text-blue-600 font-mono">
-                  {channelId.current}
-                </pre>
-              </p>
-              <a
-                href={`${import.meta.env.BASE_URL}#/receiver/${
-                  channelId.current
-                }`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block border px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 font-medium"
-              >
-                Share Receiver Link
-              </a>
-            </div>
-          )}
-
-          {/* Language selectors */}
-          {status === 'ready' && (
-            <div className="flex justify-center gap-6 mb-4">
-              <div className="text-center">
-                <label className="text-sm text-gray-600 block mb-1">Speech Language:</label>
-                <LanguageSelector
-                  language={language}
-                  setLanguage={(e) => {
-                    recorderRef.current?.stop();
-                    setLanguage(e);
-                    languageRef.current = e;
-                    recorderRef.current?.start();
-                  }}
-                />
               </div>
-              <div className="text-center">
-                <label className="text-sm text-gray-600 block mb-1">Translation Language:</label>
-                <LanguageSelector
-                  language={targetLanguage}
-                  setLanguage={(e) => {
-                    setTargetLanguage(e);
-                    targetLanguageRef.current = e;
-                  }}
-                />
-              </div>
-              <button
-                className="border rounded-lg px-3 py-1 text-sm hover:bg-gray-100"
-                onClick={() => {
-                  recorderRef.current?.stop();
-                  recorderRef.current?.start();
-                }}
-              >
-                Reset
-              </button>
+            )}
+          </div>
+
+          {/* Collapsible content */}
+          {!isHeaderCollapsed && (
+            <div className="space-y-4">
+              <h2 className="text-lg text-gray-600 text-center">
+                Real-time speech recognition & AI translation
+              </h2>
+
+              {status === null && (
+                <div className="text-center">
+                  <p className="max-w-[600px] mx-auto text-gray-600 mb-4">
+                    You are about to load{' '}
+                    <a
+                      href="https://huggingface.co/onnx-community/whisper-base"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium underline text-blue-600"
+                    >
+                      whisper-base
+                    </a>
+                    , a 73 million parameter speech recognition model optimized for web. 
+                    Once downloaded, the model (~200MB) will be cached and reused.
+                  </p>
+                  <button
+                    className="border px-6 py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:bg-blue-200 disabled:cursor-not-allowed select-none font-medium text-lg"
+                    onClick={() => {
+                      worker.current.postMessage({ type: 'load' });
+                      setStatus('loading');
+                    }}
+                    disabled={status !== null}
+                  >
+                    START TRANSCRIBING
+                  </button>
+                </div>
+              )}
+
+              {/* Language selectors */}
+              {status === 'ready' && (
+                <div className="flex justify-center gap-6">
+                  <div className="text-center">
+                    <label className="text-sm text-gray-600 block mb-1">Speech Language:</label>
+                    <LanguageSelector
+                      language={language}
+                      setLanguage={(e) => {
+                        recorderRef.current?.stop();
+                        setLanguage(e);
+                        languageRef.current = e;
+                        recorderRef.current?.start();
+                      }}
+                    />
+                  </div>
+                  <div className="text-center">
+                    <label className="text-sm text-gray-600 block mb-1">Translation Language:</label>
+                    <LanguageSelector
+                      language={targetLanguage}
+                      setLanguage={(e) => {
+                        setTargetLanguage(e);
+                        targetLanguageRef.current = e;
+                      }}
+                    />
+                  </div>
+                  <button
+                    className="border rounded-lg px-3 py-1 text-sm hover:bg-gray-100 mt-6"
+                    onClick={() => {
+                      recorderRef.current?.stop();
+                      recorderRef.current?.start();
+                    }}
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

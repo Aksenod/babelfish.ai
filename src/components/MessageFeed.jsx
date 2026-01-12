@@ -19,7 +19,7 @@ export default function MessageFeed({ messages }) {
 
   if (!messages || messages.length === 0) {
     return (
-      <div className="w-full h-[80vh] border-2 border-gray-300 rounded-xl p-6 bg-white shadow-lg">
+      <div className="w-full h-full border-2 border-gray-300 rounded-xl p-6 bg-white shadow-lg">
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <div className="text-6xl mb-4">🎤</div>
@@ -34,7 +34,7 @@ export default function MessageFeed({ messages }) {
   return (
     <div 
       ref={feedRef}
-      className="w-full h-[80vh] border-2 border-gray-300 rounded-xl p-6 bg-white shadow-lg overflow-y-auto scrollbar-thin"
+      className="w-full h-full border-2 border-gray-300 rounded-xl p-6 bg-white shadow-lg overflow-y-auto scrollbar-thin"
     >
       <div className="space-y-4">
         {messages.map((message, index) => (
