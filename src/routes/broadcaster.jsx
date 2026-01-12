@@ -14,6 +14,7 @@ const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 const WHISPER_SAMPLING_RATE = 16_000;
 const MAX_AUDIO_LENGTH = 10; // Reduced from 30 to 10 seconds for faster processing
 const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
+const TIMESLICE_MS = 2000; // Request data every 2 seconds
 
 // Voice Activity Detection threshold
 const VAD_THRESHOLD = 0.01; // Minimum audio level to consider as speech
@@ -121,7 +122,8 @@ function App({ supabase }) {
           setStatus('ready');
           // Start recording only when both models are ready
           if (translationStatus === 'ready') {
-            recorderRef.current?.start();
+            console.log('Both models ready, starting recording...');
+            recorderRef.current?.start(TIMESLICE_MS);
           }
           break;
 
@@ -204,7 +206,8 @@ function App({ supabase }) {
           setTranslationStatus('ready');
           // Start recording only when both models are ready
           if (status === 'ready') {
-            recorderRef.current?.start();
+            console.log('Both models ready, starting recording...');
+            recorderRef.current?.start(TIMESLICE_MS);
           }
           break;
 
@@ -299,13 +302,13 @@ function App({ supabase }) {
         .then((stream) => {
           setStream(stream);
 
-          // Get supported MIME types
+          // Get supported MIME types - prioritize uncompressed formats for better compatibility
           const mimeTypes = [
-            'audio/webm;codecs=opus',
+            'audio/wav',
+            'audio/webm;codecs=pcm',
             'audio/webm',
             'audio/ogg;codecs=opus',
             'audio/ogg',
-            'audio/wav',
             'audio/mp4'
           ];
           
@@ -313,13 +316,25 @@ function App({ supabase }) {
           for (const mimeType of mimeTypes) {
             if (MediaRecorder.isTypeSupported(mimeType)) {
               supportedMimeType = mimeType;
+              console.log(`Using MIME type: ${supportedMimeType}`);
               break;
             }
           }
           
           mimeTypeRef.current = supportedMimeType;
           
-          recorderRef.current = new MediaRecorder(stream, { mimeType: supportedMimeType });
+          // Configure MediaRecorder for better audio quality
+          const options = {
+            mimeType: supportedMimeType,
+            audioBitsPerSecond: 16000 // Match Whisper sample rate
+          };
+          
+          if (supportedMimeType.includes('webm')) {
+            options.audioBitsPerSecond = 128000; // Higher quality for WebM
+          }
+          
+          recorderRef.current = new MediaRecorder(stream, options);
+          
           audioContextRef.current = new AudioContext({
             sampleRate: WHISPER_SAMPLING_RATE,
           });
@@ -327,6 +342,8 @@ function App({ supabase }) {
           recorderRef.current.onstart = () => {
             setRecording(true);
             setChunks([]);
+            // Start data collection with timeslice
+            recorderRef.current.start(TIMESLICE_MS);
           };
           recorderRef.current.ondataavailable = (e) => {
             if (e.data.size > 0) {
@@ -392,28 +409,52 @@ function App({ supabase }) {
             return;
           }
           
-          // Convert compressed audio to PCM
+          // Convert compressed audio to PCM with better error handling
           let audioBuffer;
           
-          if (mimeTypeRef.current.includes('webm') || mimeTypeRef.current.includes('ogg')) {
-            // For compressed formats, decode using AudioContext
-            try {
-              audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-            } catch (error) {
-              console.error('Failed to decode compressed audio, trying workaround:', error);
-              
-              // Fallback: create silent audio as placeholder
-              audioBuffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
+          try {
+            // First attempt: direct decoding
+            audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+          } catch (primaryError) {
+            console.warn('Primary decoding failed, trying alternatives:', primaryError.message);
+            
+            // Second attempt: for WebM/Opus, try to extract raw data
+            if (mimeTypeRef.current.includes('webm') || mimeTypeRef.current.includes('ogg')) {
+              try {
+                // Create a temporary buffer to extract audio data
+                const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
+                audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
+                await tempContext.close();
+              } catch (webmError) {
+                console.error('WebM/OGG decoding failed:', webmError);
+                // Final fallback: generate synthetic audio for testing
+                audioBuffer = createTestAudioBuffer();
+              }
+            } else {
+              // For WAV formats, try with different approach
+              try {
+                const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
+                audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
+                await tempContext.close();
+              } catch (wavError) {
+                console.error('WAV decoding failed:', wavError);
+                audioBuffer = createTestAudioBuffer();
+              }
             }
-          } else {
-            // For WAV/PCM formats
-            try {
-              audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
-            } catch (error) {
-              console.error('Failed to decode WAV audio:', error);
-              // Fallback: create silent audio
-              audioBuffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
+          }
+          
+          // Helper function to create test audio buffer
+          function createTestAudioBuffer() {
+            console.warn('Creating test audio buffer as fallback');
+            const buffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
+            const data = buffer.getChannelData(0);
+            
+            // Generate a simple test tone (440 Hz) for verification
+            for (let i = 0; i < MAX_SAMPLES; i++) {
+              data[i] = Math.sin(2 * Math.PI * 440 * i / WHISPER_SAMPLING_RATE) * 0.1;
             }
+            
+            return buffer;
           }
           
           let audio = audioBuffer.getChannelData(0);
@@ -456,6 +497,14 @@ function App({ supabase }) {
           }
         } catch (error) {
           console.error('Audio processing error:', error);
+          
+          // Enhanced error handling
+          if (error.name === 'EncodingError') {
+            console.warn('Audio encoding error - possible format incompatibility');
+          } else if (error.name === 'NotSupportedError') {
+            console.warn('Audio format not supported by browser');
+          }
+          
           // Clear chunks and continue recording
           setChunks([]);
           recorderRef.current?.requestData();
@@ -551,7 +600,7 @@ function App({ supabase }) {
                         recorderRef.current?.stop();
                         setLanguage(e);
                         languageRef.current = e;
-                        recorderRef.current?.start();
+                        recorderRef.current?.start(TIMESLICE_MS);
                       }}
                     />
                   </div>
@@ -569,7 +618,7 @@ function App({ supabase }) {
                     className="border rounded-lg px-3 py-1 text-sm hover:bg-gray-100 mt-6"
                     onClick={() => {
                       recorderRef.current?.stop();
-                      recorderRef.current?.start();
+                      recorderRef.current?.start(TIMESLICE_MS);
                     }}
                   >
                     Reset

@@ -20,40 +20,54 @@ class AutomaticSpeechRecognitionPipeline {
     static async getInstance(progress_callback = null) {
         this.model_id = 'Xenova/whisper-tiny';
 
-        this.tokenizer ??= AutoTokenizer.from_pretrained(this.model_id, {
-            progress_callback,
-        });
-        this.processor ??= AutoProcessor.from_pretrained(this.model_id, {
-            progress_callback,
-        });
+        try {
+            // Load tokenizer and processor in parallel
+            const [tokenizer, processor] = await Promise.all([
+                AutoTokenizer.from_pretrained(this.model_id, {
+                    progress_callback,
+                }),
+                AutoProcessor.from_pretrained(this.model_id, {
+                    progress_callback,
+                })
+            ]);
+            
+            this.tokenizer = tokenizer;
+            this.processor = processor;
 
-        if (!this.model) {
-            try {
-                console.log('Attempting to load model with WebGPU...');
-                this.model = await WhisperForConditionalGeneration.from_pretrained(this.model_id, {
-                    dtype: {
-                        encoder_model: 'fp32', // 'fp16' works too
-                        decoder_model_merged: 'q4', // or 'fp32' ('fp16' is broken)
-                    },
-                    device: 'webgpu',
-                    progress_callback,
-                });
-                console.log('Model loaded successfully with WebGPU');
-            } catch (error) {
-                console.warn('WebGPU failed, falling back to WASM:', error);
-                this.model = await WhisperForConditionalGeneration.from_pretrained(this.model_id, {
-                    dtype: {
-                        encoder_model: 'fp32',
-                        decoder_model_merged: 'q4',
-                    },
-                    device: 'wasm',
-                    progress_callback,
-                });
-                console.log('Model loaded successfully with WASM fallback');
+            if (!this.model) {
+                try {
+                    console.log('Attempting to load model with WebGPU...');
+                    this.model = await WhisperForConditionalGeneration.from_pretrained(this.model_id, {
+                        dtype: {
+                            encoder_model: 'fp32',
+                            decoder_model_merged: 'q4',
+                        },
+                        device: 'webgpu',
+                        progress_callback,
+                        // Suppress warnings
+                        quiet: true
+                    });
+                    console.log('Model loaded successfully with WebGPU');
+                } catch (error) {
+                    console.warn('WebGPU failed, falling back to WASM:', error.message);
+                    this.model = await WhisperForConditionalGeneration.from_pretrained(this.model_id, {
+                        dtype: {
+                            encoder_model: 'fp32',
+                            decoder_model_merged: 'q4',
+                        },
+                        device: 'wasm',
+                        progress_callback,
+                        quiet: true
+                    });
+                    console.log('Model loaded successfully with WASM fallback');
+                }
             }
+        } catch (error) {
+            console.error('Failed to load tokenizer/processor:', error);
+            throw error;
         }
 
-        return Promise.all([this.tokenizer, this.processor, this.model]);
+        return this;
     }
 }
 
@@ -66,11 +80,11 @@ async function generate({ audio, language }) {
     self.postMessage({ status: 'start' });
 
     // Retrieve the text-generation pipeline.
-    const [tokenizer, processor, model] = await AutomaticSpeechRecognitionPipeline.getInstance();
+    const pipeline = await AutomaticSpeechRecognitionPipeline.getInstance();
 
-    const inputs = await processor(audio);
+    const inputs = await pipeline.processor(audio);
 
-    const outputs = await model.generate(inputs.input_features, {
+    const outputs = await pipeline.model.generate(inputs.input_features, {
         max_new_tokens: MAX_NEW_TOKENS,
         language,
         // Optimized parameters for faster processing
@@ -79,7 +93,7 @@ async function generate({ audio, language }) {
         do_sample: false, // Disable sampling for faster processing
     });
 
-    const outputText = tokenizer.batch_decode(outputs, { skip_special_tokens: true });
+    const outputText = pipeline.tokenizer.batch_decode(outputs, { skip_special_tokens: true });
 
     // Send the output back to the main thread
     self.postMessage({
