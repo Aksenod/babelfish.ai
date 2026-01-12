@@ -353,7 +353,14 @@ function App({ supabase }) {
 
           // Start recording immediately after setup
           if (recorderRef.current.state === 'inactive') {
-            recorderRef.current.start(TIMESLICE_MS);
+            recorderRef.current.start(); // Don't use timeslice
+            
+            // Request data manually every 500ms
+            setInterval(() => {
+              if (recorderRef.current && recorderRef.current.state === 'recording') {
+                recorderRef.current.requestData();
+              }
+            }, TIMESLICE_MS);
           }
 
 // Voice Activity Detection function
@@ -541,7 +548,7 @@ return rms > VAD_THRESHOLD;
               recorderRef.current.stop();
               setTimeout(() => {
                 if (recorderRef.current && recorderRef.current.state === 'inactive') {
-                  recorderRef.current.start(TIMESLICE_MS);
+                  recorderRef.current.start();
                 }
               }, 500);
             }
@@ -657,7 +664,7 @@ return rms > VAD_THRESHOLD;
                         setTimeout(() => {
                           if (recorderRef.current && recorderRef.current.state === 'inactive') {
                             try {
-                              recorderRef.current.start(TIMESLICE_MS);
+                              recorderRef.current.start();
                               setRecording(true);
                             } catch (error) {
                               console.error('Failed to restart recorder after language change:', error);
@@ -694,7 +701,7 @@ return rms > VAD_THRESHOLD;
                           setTimeout(() => {
                             if (recorderRef.current && recorderRef.current.state === 'inactive') {
                               try {
-                                recorderRef.current.start(TIMESLICE_MS);
+                                recorderRef.current.start();
                                 setRecording(true);
                               } catch (error) {
                                 console.error('Failed to restart recorder after reset:', error);
