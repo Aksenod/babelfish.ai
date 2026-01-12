@@ -96,6 +96,8 @@ async function generate({ audio, language }) {
     });
 
     const outputText = pipeline.tokenizer.batch_decode(outputs, { skip_special_tokens: true });
+    
+    console.log('Transcription result:', outputText);
 
     // Send the output back to the main thread
     self.postMessage({

@@ -147,6 +147,7 @@ function App({ supabase }) {
 
         case 'complete':
           // Generation complete: re-enable the "Generate" button
+          console.log('Transcription completed:', e.data.output);
           setIsProcessing(false);
           const transcribedText = e.data.output[0];
           setText(transcribedText);
@@ -160,7 +161,11 @@ function App({ supabase }) {
             language: languageRef.current,
             targetLanguage: targetLanguageRef.current
           };
-          setMessageHistory(prev => [...prev, newMessage]);
+          console.log('Adding message to history:', newMessage);
+          setMessageHistory(prev => {
+            console.log('Current message history:', prev);
+            return [...prev, newMessage];
+          });
           
           // Send to translation worker
           if (translationWorker.current && translationStatus === 'ready') {
