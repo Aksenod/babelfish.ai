@@ -158,6 +158,7 @@ function App({ supabase }) {
             channel,
             message: transcribedText,
             language: languageRef.current,
+            messageId: newMessage.id, // Send message ID for receiver
           });
           break;
       }
@@ -221,6 +222,7 @@ function App({ supabase }) {
             message: e.data.output[0].translation_text,
             language: targetLanguageRef.current,
             translated: true,
+            messageId: messageId, // Send same message ID
           });
           break;
       }
@@ -441,12 +443,18 @@ function App({ supabase }) {
             </>
           )}
 
+          {/* Message Feed - prominently displayed */}
+          {status === 'ready' && messageHistory.length > 0 && (
+            <div className="w-full max-w-[600px] mt-6">
+              <h3 className="text-lg font-semibold mb-3 text-center">Conversation History</h3>
+              <MessageFeed messages={messageHistory} />
+            </div>
+          )}
+
           <div className="w-[500px] p-2">
             <AudioVisualizer className="w-full rounded-lg" stream={stream} />
             {status === 'ready' && (
               <>
-                <MessageFeed messages={messageHistory} />
-                
                 {tps && (
                   <div className="text-right text-xs text-gray-500 mt-1">
                     {tps.toFixed(2)} tok/s

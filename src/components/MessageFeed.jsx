@@ -19,7 +19,7 @@ export default function MessageFeed({ messages }) {
 
   if (!messages || messages.length === 0) {
     return (
-      <div className="w-full h-[200px] border rounded-lg p-4 bg-gray-50">
+      <div className="w-full h-[300px] border rounded-lg p-4 bg-gray-50">
         <p className="text-center text-gray-500">No messages yet. Start speaking to see transcripts and translations.</p>
       </div>
     );
@@ -28,7 +28,7 @@ export default function MessageFeed({ messages }) {
   return (
     <div 
       ref={feedRef}
-      className="w-full h-[200px] border rounded-lg p-4 bg-gray-50 overflow-y-auto scrollbar-thin"
+      className="w-full h-[300px] border rounded-lg p-4 bg-gray-50 overflow-y-auto scrollbar-thin"
     >
       <div className="space-y-3">
         {messages.map((message) => (

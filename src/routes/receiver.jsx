@@ -16,18 +16,18 @@ function App({ supabase }) {
     channel
       .on('broadcast', { event: 'transcript' }, ({ payload }) => {
         if (payload.translated) {
-          // This is a translated message - update existing message
+          // This is a translated message - update existing message by ID
           setMessageHistory(prev => 
             prev.map(msg => 
-              msg.original === payload.message && !msg.translation
+              msg.id === payload.messageId
                 ? { ...msg, translation: payload.message }
                 : msg
             )
           );
         } else {
-          // This is an original transcript - add new message
+          // This is an original transcript - add new message with broadcaster ID
           const newMessage = {
-            id: Date.now() + Math.random(), // Unique ID
+            id: payload.messageId, // Use ID from broadcaster
             original: payload.message,
             translation: null,
             timestamp: new Date(),
