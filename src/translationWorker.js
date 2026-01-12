@@ -15,14 +15,14 @@ class MyTranslationPipeline {
         if (this.instance === null) {
             try {
                 console.log('Attempting to load translation pipeline with WebGPU...');
-                this.instance = pipeline(this.task, this.model, { 
+                this.instance = await pipeline(this.task, this.model, { 
                     progress_callback,
                     device: 'webgpu'
                 });
                 console.log('Translation pipeline loaded successfully with WebGPU');
             } catch (error) {
                 console.warn('WebGPU failed for translation, falling back to WASM:', error);
-                this.instance = pipeline(this.task, this.model, { 
+                this.instance = await pipeline(this.task, this.model, { 
                     progress_callback,
                     device: 'wasm'
                 });
