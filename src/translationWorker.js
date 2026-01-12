@@ -13,7 +13,21 @@ class MyTranslationPipeline {
 
     static async getInstance(progress_callback = null) {
         if (this.instance === null) {
-            this.instance = pipeline(this.task, this.model, { progress_callback });
+            try {
+                console.log('Attempting to load translation pipeline with WebGPU...');
+                this.instance = pipeline(this.task, this.model, { 
+                    progress_callback,
+                    device: 'webgpu'
+                });
+                console.log('Translation pipeline loaded successfully with WebGPU');
+            } catch (error) {
+                console.warn('WebGPU failed for translation, falling back to WASM:', error);
+                this.instance = pipeline(this.task, this.model, { 
+                    progress_callback,
+                    device: 'wasm'
+                });
+                console.log('Translation pipeline loaded successfully with WASM fallback');
+            }
         }
 
         return this.instance;

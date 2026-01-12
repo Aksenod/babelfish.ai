@@ -6,6 +6,7 @@ import { LanguageSelector } from '../components/LanguageSelectorBroadcaster';
 import GitHubLink from '../components/GitHubLink';
 import broadcast from '../utils/broadcaster';
 import { randomId } from '../utils/utils';
+import { languageMapping } from '../utils/languages';
 
 const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 
@@ -16,19 +17,26 @@ const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
 function App({ supabase }) {
   // Create a reference to the worker object.
   const worker = useRef(null);
+  const translationWorker = useRef(null);
 
   const recorderRef = useRef(null);
 
   // Model loading and progress
   const [status, setStatus] = useState(null);
+  const [translationStatus, setTranslationStatus] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [translationLoadingMessage, setTranslationLoadingMessage] = useState('');
   const [progressItems, setProgressItems] = useState([]);
+  const [translationProgressItems, setTranslationProgressItems] = useState([]);
 
   // Inputs and outputs
   const [text, setText] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
   const [tps, setTps] = useState(null);
   const [language, setLanguage] = useState('en');
+  const [targetLanguage, setTargetLanguage] = useState('es'); // Default target language
   const languageRef = useRef(language);
+  const targetLanguageRef = useRef(targetLanguage);
 
   // Processing
   const [recording, setRecording] = useState(false);
@@ -53,7 +61,17 @@ function App({ supabase }) {
       );
     }
 
-    // Create a callback function for messages from the worker thread.
+    if (!translationWorker.current) {
+      // Create the translation worker
+      translationWorker.current = new Worker(
+        new URL('../translationWorker.js', import.meta.url),
+        {
+          type: 'module',
+        }
+      );
+    }
+
+    // Create a callback function for messages from the transcription worker thread.
     const onMessageReceived = (e) => {
       switch (e.data.status) {
         case 'loading':
@@ -88,7 +106,10 @@ function App({ supabase }) {
         case 'ready':
           // Pipeline ready: the worker is ready to accept messages.
           setStatus('ready');
-          recorderRef.current?.start();
+          // Start recording only when both models are ready
+          if (translationStatus === 'ready') {
+            recorderRef.current?.start();
+          }
           break;
 
         case 'start':
@@ -112,11 +133,68 @@ function App({ supabase }) {
         case 'complete':
           // Generation complete: re-enable the "Generate" button
           setIsProcessing(false);
-          setText(e.data.output);
+          const transcribedText = e.data.output[0];
+          setText(transcribedText);
+          
+          // Send to translation worker
+          if (translationWorker.current && translationStatus === 'ready') {
+            translateText(transcribedText);
+          }
+          
           broadcast({
             channel,
-            message: e.data.output[0],
+            message: transcribedText,
             language: languageRef.current,
+          });
+          break;
+      }
+    };
+
+    // Create a callback function for messages from the translation worker thread.
+    const onTranslationMessageReceived = (e) => {
+      switch (e.data.status) {
+        case 'initiate':
+          setTranslationStatus('loading');
+          setTranslationProgressItems((prev) => [...prev, e.data]);
+          break;
+
+        case 'progress':
+          setTranslationProgressItems((prev) =>
+            prev.map((item) => {
+              if (item.file === e.data.file) {
+                return { ...item, ...e.data };
+              }
+              return item;
+            })
+          );
+          break;
+
+        case 'done':
+          setTranslationProgressItems((prev) =>
+            prev.filter((item) => item.file !== e.data.file)
+          );
+          break;
+
+        case 'ready':
+          setTranslationStatus('ready');
+          // Start recording only when both models are ready
+          if (status === 'ready') {
+            recorderRef.current?.start();
+          }
+          break;
+
+        case 'update':
+          setTranslatedText(e.data.output);
+          break;
+
+        case 'complete':
+          setTranslatedText(e.data.output[0].translation_text);
+          // Broadcast translated text
+          broadcast({
+            channel,
+            message: e.data.output[0].translation_text,
+            language: targetLanguageRef.current,
+            translated: true,
           });
           break;
       }
@@ -124,12 +202,45 @@ function App({ supabase }) {
 
     // Attach the callback function as an event listener.
     worker.current.addEventListener('message', onMessageReceived);
+    translationWorker.current.addEventListener('message', onTranslationMessageReceived);
 
     // Define a cleanup function for when the component is unmounted.
     return () => {
       worker.current.removeEventListener('message', onMessageReceived);
+      translationWorker.current.removeEventListener('message', onTranslationMessageReceived);
     };
   }, []);
+
+  // Translation function
+  const translateText = (textToTranslate) => {
+    if (!textToTranslate || !translationWorker.current) return;
+    
+    const sourceLang = languageMapping[languageRef.current] || 'eng_Latn';
+    const targetLang = targetLanguageRef.current;
+    
+    if (sourceLang === targetLang) {
+      setTranslatedText(textToTranslate);
+      return;
+    }
+    
+    translationWorker.current.postMessage({
+      text: textToTranslate,
+      src_lang: sourceLang,
+      tgt_lang: targetLang,
+    });
+  };
+
+  // Start translation worker when transcription model is ready
+  useEffect(() => {
+    if (status === 'ready' && !translationStatus) {
+      // Initialize translation worker by sending a dummy message to trigger loading
+      translationWorker.current.postMessage({
+        text: 'hello',
+        src_lang: 'eng_Latn',
+        tgt_lang: 'spa_Latn',
+      });
+    }
+  }, [status, translationStatus]);
 
   useEffect(() => {
     if (recorderRef.current) return; // Already set
@@ -298,29 +409,51 @@ function App({ supabase }) {
           <div className="w-[500px] p-2">
             <AudioVisualizer className="w-full rounded-lg" stream={stream} />
             {status === 'ready' && (
-              <div className="relative">
-                <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2">
-                  {text}
-                </p>
-                {tps && (
-                  <span className="absolute bottom-0 right-0 px-1">
-                    {tps.toFixed(2)} tok/s
-                  </span>
+              <>
+                <div className="relative">
+                  <p className="w-full h-[60px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2 mb-2">
+                    <strong>Original:</strong> {text}
+                  </p>
+                  {tps && (
+                    <span className="absolute bottom-0 right-0 px-1">
+                      {tps.toFixed(2)} tok/s
+                    </span>
+                  )}
+                </div>
+                {translationStatus === 'ready' && (
+                  <div className="relative">
+                    <p className="w-full h-[60px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2 mb-2">
+                      <strong>Translation:</strong> {translatedText}
+                    </p>
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
           {status === 'ready' && (
-            <div className="relative w-full flex justify-center">
-              <LanguageSelector
-                language={language}
-                setLanguage={(e) => {
-                  recorderRef.current?.stop();
-                  setLanguage(e);
-                  languageRef.current = e;
-                  recorderRef.current?.start();
-                }}
-              />
+            <div className="relative w-full flex justify-center gap-4">
+              <div>
+                <label className="text-sm text-gray-600">Speech Language:</label>
+                <LanguageSelector
+                  language={language}
+                  setLanguage={(e) => {
+                    recorderRef.current?.stop();
+                    setLanguage(e);
+                    languageRef.current = e;
+                    recorderRef.current?.start();
+                  }}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600">Translation Language:</label>
+                <LanguageSelector
+                  language={targetLanguage}
+                  setLanguage={(e) => {
+                    setTargetLanguage(e);
+                    targetLanguageRef.current = e;
+                  }}
+                />
+              </div>
               <button
                 className="border rounded-lg px-2 absolute right-2"
                 onClick={() => {
@@ -336,6 +469,19 @@ function App({ supabase }) {
             <div className="w-full max-w-[500px] text-left mx-auto p-4">
               <p className="text-center">{loadingMessage}</p>
               {progressItems.map(({ file, progress, total }, i) => (
+                <Progress
+                  key={i}
+                  text={file}
+                  percentage={progress}
+                  total={total}
+                />
+              ))}
+            </div>
+          )}
+          {translationStatus === 'loading' && (
+            <div className="w-full max-w-[500px] text-left mx-auto p-4">
+              <p className="text-center">Loading translation model...</p>
+              {translationProgressItems.map(({ file, progress, total }, i) => (
                 <Progress
                   key={i}
                   text={file}
