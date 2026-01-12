@@ -120,11 +120,7 @@ function App({ supabase }) {
         case 'ready':
           // Pipeline ready: the worker is ready to accept messages.
           setStatus('ready');
-          // Start recording only when both models are ready
-          if (translationStatus === 'ready') {
-            console.log('Both models ready, starting recording...');
-            recorderRef.current?.start(TIMESLICE_MS);
-          }
+          console.log('Transcription model ready, recording should be active');
           break;
 
         case 'start':
@@ -209,11 +205,7 @@ function App({ supabase }) {
 
         case 'ready':
           setTranslationStatus('ready');
-          // Start recording only when both models are ready
-          if (status === 'ready') {
-            console.log('Both models ready, starting recording...');
-            recorderRef.current?.start(TIMESLICE_MS);
-          }
+          console.log('Translation model ready, recording should be active');
           break;
 
         case 'update':
@@ -343,11 +335,13 @@ function App({ supabase }) {
           });
 
           recorderRef.current.onstart = () => {
+            console.log('MediaRecorder started');
             setRecording(true);
             setChunks([]);
-            // Start data collection with timeslice
-            recorderRef.current.start(TIMESLICE_MS);
           };
+
+          // Start recording immediately after setup
+          recorderRef.current.start(TIMESLICE_MS);
 
 // Voice Activity Detection function
 const hasVoiceActivity = (audioData) => {
