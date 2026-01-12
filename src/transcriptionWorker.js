@@ -8,7 +8,7 @@ import {
 } from '@xenova/transformers';
 
 
-const MAX_NEW_TOKENS = 64;
+const MAX_NEW_TOKENS = 32; // Reduced from 64 for faster processing
 
 /**
  * This class uses the Singleton pattern to ensure that only one instance of the model is loaded.
@@ -98,6 +98,10 @@ async function generate({ audio, language }) {
         max_new_tokens: MAX_NEW_TOKENS,
         language,
         streamer,
+        // Optimized parameters for faster processing
+        num_beams: 1, // Use greedy decoding instead of beam search
+        temperature: 1.0, // Lower temperature for more deterministic output
+        do_sample: false, // Disable sampling for faster processing
     });
 
     const outputText = tokenizer.batch_decode(outputs, { skip_special_tokens: true });

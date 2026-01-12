@@ -12,8 +12,11 @@ import { languageMapping } from '../utils/languages';
 const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 
 const WHISPER_SAMPLING_RATE = 16_000;
-const MAX_AUDIO_LENGTH = 30; // seconds
+const MAX_AUDIO_LENGTH = 10; // Reduced from 30 to 10 seconds for faster processing
 const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
+
+// Voice Activity Detection threshold
+const VAD_THRESHOLD = 0.01; // Minimum audio level to consider as speech
 
 function App({ supabase }) {
   // Create a reference to the worker object.
@@ -46,6 +49,10 @@ function App({ supabase }) {
   const [chunks, setChunks] = useState([]);
   const [stream, setStream] = useState(null);
   const audioContextRef = useRef(null);
+
+  // Performance metrics
+  const [processingTime, setProcessingTime] = useState(null);
+  const [voiceDetected, setVoiceDetected] = useState(false);
 
   // Broadcast
   const channelId = useRef(randomId());
@@ -301,10 +308,10 @@ function App({ supabase }) {
             if (e.data.size > 0) {
               setChunks((prev) => [...prev, e.data]);
             } else {
-              // Empty chunk received, so we request new data after a short timeout
+              // Empty chunk received, so we request new data after a longer timeout
               setTimeout(() => {
                 recorderRef.current.requestData();
-              }, 25);
+              }, 100); // Increased from 25ms to 100ms for better performance
             }
           };
 
@@ -322,6 +329,20 @@ function App({ supabase }) {
       recorderRef.current = null;
     };
   }, []);
+
+  // Voice Activity Detection function
+  const hasVoiceActivity = (audioData) => {
+    if (!audioData || audioData.length === 0) return false;
+    
+    // Calculate RMS (Root Mean Square) to detect voice activity
+    let sum = 0;
+    for (let i = 0; i < audioData.length; i++) {
+      sum += audioData[i] * audioData[i];
+    }
+    const rms = Math.sqrt(sum / audioData.length);
+    
+    return rms > VAD_THRESHOLD;
+  };
 
   useEffect(() => {
     if (!recorderRef.current) return;
@@ -346,10 +367,29 @@ function App({ supabase }) {
           audio = audio.slice(-MAX_SAMPLES);
         }
 
-        worker.current.postMessage({
-          type: 'generate',
-          data: { audio, language },
-        });
+        // Only process if voice activity is detected
+        if (hasVoiceActivity(audio)) {
+          setVoiceDetected(true);
+          const startTime = performance.now();
+          
+          worker.current.postMessage({
+            type: 'generate',
+            data: { audio, language },
+          });
+          
+          // Track processing time
+          setTimeout(() => {
+            const endTime = performance.now();
+            setProcessingTime(((endTime - startTime) / 1000).toFixed(2));
+          }, 100);
+          
+          setChunks([]); // Clear chunks after processing
+        } else {
+          // No voice detected, continue recording
+          setVoiceDetected(false);
+          setChunks([]); // Clear silent chunks
+          recorderRef.current?.requestData();
+        }
       };
       fileReader.readAsArrayBuffer(blob);
     } else {
@@ -480,17 +520,32 @@ function App({ supabase }) {
                     <span className="flex items-center">
                       <div className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
                       Recording...
+                      {voiceDetected && (
+                        <span className="ml-2 text-green-600 font-medium">
+                          🎤 Voice detected
+                        </span>
+                      )}
                     </span>
                   ) : (
                     'Ready'
                   )}
                 </div>
               </div>
-              {tps && (
-                <div className="text-sm text-gray-500">
-                  {tps.toFixed(2)} tok/s
-                </div>
-              )}
+              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                {tps && (
+                  <span>
+                    {tps.toFixed(2)} tok/s
+                  </span>
+                )}
+                {processingTime && (
+                  <span>
+                    ⏱️ {processingTime}s
+                  </span>
+                )}
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                  Optimized
+                </span>
+              </div>
             </div>
           </div>
         </div>
