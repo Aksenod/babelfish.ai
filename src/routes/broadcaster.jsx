@@ -298,7 +298,25 @@ function App({ supabase }) {
         .then((stream) => {
           setStream(stream);
 
-          recorderRef.current = new MediaRecorder(stream);
+          // Get supported MIME types
+          const mimeTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/ogg',
+            'audio/wav',
+            'audio/mp4'
+          ];
+          
+          let supportedMimeType = 'audio/webm';
+          for (const mimeType of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(mimeType)) {
+              supportedMimeType = mimeType;
+              break;
+            }
+          }
+          
+          recorderRef.current = new MediaRecorder(stream, { mimeType: supportedMimeType });
           audioContextRef.current = new AudioContext({
             sampleRate: WHISPER_SAMPLING_RATE,
           });
@@ -360,37 +378,62 @@ function App({ supabase }) {
       const fileReader = new FileReader();
 
       fileReader.onloadend = async () => {
-        const arrayBuffer = fileReader.result;
-        const decoded = await audioContextRef.current.decodeAudioData(
-          arrayBuffer
-        );
-        let audio = decoded.getChannelData(0);
-        if (audio.length > MAX_SAMPLES) {
-          // Get last MAX_SAMPLES
-          audio = audio.slice(-MAX_SAMPLES);
-        }
+        try {
+          const arrayBuffer = fileReader.result;
+          
+          // Check if arrayBuffer is valid
+          if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+            console.warn('Empty audio buffer received, skipping...');
+            setChunks([]);
+            recorderRef.current?.requestData();
+            return;
+          }
+          
+          const decoded = await audioContextRef.current.decodeAudioData(
+            arrayBuffer
+          );
+          let audio = decoded.getChannelData(0);
+          
+          // Check if audio data is valid
+          if (!audio || audio.length === 0) {
+            console.warn('No audio data decoded, skipping...');
+            setChunks([]);
+            recorderRef.current?.requestData();
+            return;
+          }
+          
+          if (audio.length > MAX_SAMPLES) {
+            // Get last MAX_SAMPLES
+            audio = audio.slice(-MAX_SAMPLES);
+          }
 
-        // Only process if voice activity is detected
-        if (hasVoiceActivity(audio)) {
-          setVoiceDetected(true);
-          const startTime = performance.now();
-          
-          worker.current.postMessage({
-            type: 'generate',
-            data: { audio, language },
-          });
-          
-          // Track processing time
-          setTimeout(() => {
-            const endTime = performance.now();
-            setProcessingTime(((endTime - startTime) / 1000).toFixed(2));
-          }, 100);
-          
-          setChunks([]); // Clear chunks after processing
-        } else {
-          // No voice detected, continue recording
-          setVoiceDetected(false);
-          setChunks([]); // Clear silent chunks
+          // Only process if voice activity is detected
+          if (hasVoiceActivity(audio)) {
+            setVoiceDetected(true);
+            const startTime = performance.now();
+            
+            worker.current.postMessage({
+              type: 'generate',
+              data: { audio, language },
+            });
+            
+            // Track processing time
+            setTimeout(() => {
+              const endTime = performance.now();
+              setProcessingTime(((endTime - startTime) / 1000).toFixed(2));
+            }, 100);
+            
+            setChunks([]); // Clear chunks after processing
+          } else {
+            // No voice detected, continue recording
+            setVoiceDetected(false);
+            setChunks([]); // Clear silent chunks
+            recorderRef.current?.requestData();
+          }
+        } catch (error) {
+          console.error('Audio processing error:', error);
+          // Clear chunks and continue recording
+          setChunks([]);
           recorderRef.current?.requestData();
         }
       };
