@@ -49,6 +49,7 @@ function App({ supabase }) {
   const [chunks, setChunks] = useState([]);
   const [stream, setStream] = useState(null);
   const mimeTypeRef = useRef(null);
+  const audioContextRef = useRef(null);
 
   // Performance metrics
   const [processingTime, setProcessingTime] = useState(null);
