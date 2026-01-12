@@ -343,21 +343,22 @@ function App({ supabase }) {
             // Start data collection with timeslice
             recorderRef.current.start(TIMESLICE_MS);
           };
-          recorderRef.current.ondataavailable = (e) => {
-            console.log(`Audio chunk received: ${e.data.size} bytes`);
-            if (e.data.size > 0) {
-              setChunks((prev) => [...prev, e.data]);
-            } else {
-              // Empty chunk received, so we request new data after a longer timeout
-              setTimeout(() => {
-                recorderRef.current.requestData();
-              }, 100); // Increased from 25ms to 100ms for better performance
-            }
-          };
 
-          recorderRef.current.onstop = () => {
-            setRecording(false);
-          };
+// Voice Activity Detection function
+const hasVoiceActivity = (audioData) => {
+if (!audioData || audioData.length === 0) return false;
+  
+// Calculate RMS (Root Mean Square) to detect voice activity
+let sum = 0;
+for (let i = 0; i < audioData.length; i++) {
+  sum += audioData[i] * audioData[i];
+}
+const rms = Math.sqrt(sum / audioData.length);
+  
+console.log(`Audio RMS: ${rms.toFixed(6)}, Threshold: ${VAD_THRESHOLD}`);
+  
+return rms > VAD_THRESHOLD;
+};
         })
         .catch((err) => console.error('The following error occurred: ', err));
     } else {
@@ -369,6 +370,17 @@ function App({ supabase }) {
       recorderRef.current = null;
     };
   }, []);
+
+  // Safe function to request new data without state errors
+  const requestNewDataSafely = () => {
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      try {
+        recorderRef.current.requestData();
+      } catch (error) {
+        console.warn('Failed to request data:', error.message);
+      }
+    }
+  };
 
   // Voice Activity Detection function
   const hasVoiceActivity = (audioData) => {
@@ -402,11 +414,22 @@ function App({ supabase }) {
         try {
           const arrayBuffer = fileReader.result;
           
-          // Check if arrayBuffer is valid
+          // Check if arrayBuffer is valid and not detached
           if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-            console.warn('Empty audio buffer received, skipping...');
+            console.warn('Empty or invalid audio buffer received, skipping...');
             setChunks([]);
-            recorderRef.current?.requestData();
+            requestNewDataSafely();
+            return;
+          }
+          
+          // Additional check for detached ArrayBuffer
+          try {
+            // This will throw if ArrayBuffer is detached
+            arrayBuffer.slice(0);
+          } catch (detachedError) {
+            console.warn('Detected detached ArrayBuffer, skipping...');
+            setChunks([]);
+            requestNewDataSafely();
             return;
           }
           
@@ -452,7 +475,7 @@ function App({ supabase }) {
           if (!audio || audio.length === 0) {
             console.warn('No audio data decoded, skipping...');
             setChunks([]);
-            recorderRef.current?.requestData();
+            requestNewDataSafely();
             return;
           }
           
@@ -461,7 +484,7 @@ function App({ supabase }) {
           if (isSilent) {
             console.warn('Silent fallback buffer detected, skipping processing to prevent errors');
             setChunks([]);
-            recorderRef.current?.requestData();
+            requestNewDataSafely();
             return;
           }
           
@@ -493,7 +516,7 @@ function App({ supabase }) {
             console.log('No voice activity detected, continuing recording...');
             setVoiceDetected(false);
             setChunks([]); // Clear silent chunks
-            recorderRef.current?.requestData();
+            requestNewDataSafely();
           }
         } catch (error) {
           console.error('Audio processing error:', error);
@@ -529,7 +552,7 @@ function App({ supabase }) {
       };
       fileReader.readAsArrayBuffer(blob);
     } else {
-      recorderRef.current?.requestData();
+      requestNewDataSafely();
     }
   }, [status, recording, isProcessing, chunks, language]);
 
