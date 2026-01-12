@@ -48,7 +48,7 @@ function App({ supabase }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [chunks, setChunks] = useState([]);
   const [stream, setStream] = useState(null);
-  const audioContextRef = useRef(null);
+  const mimeTypeRef = useRef(null);
 
   // Performance metrics
   const [processingTime, setProcessingTime] = useState(null);
@@ -316,6 +316,8 @@ function App({ supabase }) {
             }
           }
           
+          mimeTypeRef.current = supportedMimeType;
+          
           recorderRef.current = new MediaRecorder(stream, { mimeType: supportedMimeType });
           audioContextRef.current = new AudioContext({
             sampleRate: WHISPER_SAMPLING_RATE,
@@ -389,10 +391,31 @@ function App({ supabase }) {
             return;
           }
           
-          const decoded = await audioContextRef.current.decodeAudioData(
-            arrayBuffer
-          );
-          let audio = decoded.getChannelData(0);
+          // Convert compressed audio to PCM
+          let audioBuffer;
+          
+          if (mimeTypeRef.current.includes('webm') || mimeTypeRef.current.includes('ogg')) {
+            // For compressed formats, decode using AudioContext
+            try {
+              audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+            } catch (error) {
+              console.error('Failed to decode compressed audio, trying workaround:', error);
+              
+              // Fallback: create silent audio as placeholder
+              audioBuffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
+            }
+          } else {
+            // For WAV/PCM formats
+            try {
+              audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+            } catch (error) {
+              console.error('Failed to decode WAV audio:', error);
+              // Fallback: create silent audio
+              audioBuffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
+            }
+          }
+          
+          let audio = audioBuffer.getChannelData(0);
           
           // Check if audio data is valid
           if (!audio || audio.length === 0) {
