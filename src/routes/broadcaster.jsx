@@ -302,13 +302,12 @@ function App({ supabase }) {
         .then((stream) => {
           setStream(stream);
 
-          // Get supported MIME types - prioritize uncompressed formats for better compatibility
+          // Get supported MIME types - prioritize most compatible formats
           const mimeTypes = [
-            'audio/wav',
-            'audio/webm;codecs=pcm',
             'audio/webm',
+            'audio/webm;codecs=opus',
             'audio/ogg;codecs=opus',
-            'audio/ogg',
+            'audio/wav',
             'audio/mp4'
           ];
           
@@ -326,12 +325,11 @@ function App({ supabase }) {
           // Configure MediaRecorder for better audio quality
           const options = {
             mimeType: supportedMimeType,
-            audioBitsPerSecond: 16000 // Match Whisper sample rate
+            // Only add audioBitsPerSecond for formats that support it
+            ...(supportedMimeType.includes('webm') || supportedMimeType.includes('mp4') ? {
+              audioBitsPerSecond: 128000 // 128 kbps for good quality
+            } : {})
           };
-          
-          if (supportedMimeType.includes('webm')) {
-            options.audioBitsPerSecond = 128000; // Higher quality for WebM
-          }
           
           recorderRef.current = new MediaRecorder(stream, options);
           
@@ -418,26 +416,35 @@ function App({ supabase }) {
           } catch (primaryError) {
             console.warn('Primary decoding failed, trying alternatives:', primaryError.message);
             
-            // Second attempt: for WebM/Opus, try to extract raw data
-            if (mimeTypeRef.current.includes('webm') || mimeTypeRef.current.includes('ogg')) {
+            // Check MIME type for specific handling
+            if (mimeTypeRef.current.includes('webm') || mimeTypeRef.current.includes('opus')) {
               try {
-                // Create a temporary buffer to extract audio data
+                // For WebM/Opus, try to extract raw data with fresh context
                 const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
                 audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
                 await tempContext.close();
               } catch (webmError) {
-                console.error('WebM/OGG decoding failed:', webmError);
-                // Final fallback: generate synthetic audio for testing
+                console.warn('WebM/Opus decoding failed:', webmError.message);
                 audioBuffer = createTestAudioBuffer();
               }
-            } else {
-              // For WAV formats, try with different approach
+            } else if (mimeTypeRef.current.includes('wav')) {
               try {
+                // For WAV formats, try with different approach
                 const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
                 audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
                 await tempContext.close();
               } catch (wavError) {
-                console.error('WAV decoding failed:', wavError);
+                console.warn('WAV decoding failed:', wavError.message);
+                audioBuffer = createTestAudioBuffer();
+              }
+            } else {
+              // For other formats, try generic approach
+              try {
+                const tempContext = new AudioContext({ sampleRate: WHISPER_SAMPLING_RATE });
+                audioBuffer = await tempContext.decodeAudioData(arrayBuffer.slice(0));
+                await tempContext.close();
+              } catch (genericError) {
+                console.warn('Generic decoding failed:', genericError.message);
                 audioBuffer = createTestAudioBuffer();
               }
             }
@@ -507,19 +514,33 @@ function App({ supabase }) {
         } catch (error) {
           console.error('Audio processing error:', error);
           
-          // Enhanced error handling
+          // Enhanced error handling with specific error types
           if (error.name === 'EncodingError') {
             console.warn('Audio encoding error - possible format incompatibility');
+            // Try to reset MediaRecorder with different format
+            if (recorderRef.current && recorderRef.current.state === 'recording') {
+              recorderRef.current.stop();
+              setTimeout(() => {
+                if (recorderRef.current && recorderRef.current.state === 'inactive') {
+                  recorderRef.current.start(TIMESLICE_MS);
+                }
+              }, 500);
+            }
           } else if (error.name === 'NotSupportedError') {
             console.warn('Audio format not supported by browser');
+          } else if (error.message.includes('Unable to decode audio data')) {
+            console.warn('Audio decoding failed - possibly corrupted data');
           }
+          
           // Clear chunks and continue recording, but prevent error accumulation
           setChunks([]);
           setVoiceDetected(false);
-          // Add a small delay before requesting new data to prevent error loops
+          // Add a longer delay before requesting new data to prevent error loops
           setTimeout(() => {
-            recorderRef.current?.requestData();
-          }, 200);
+            if (recorderRef.current && recorderRef.current.state === 'recording') {
+              recorderRef.current?.requestData();
+            }
+          }, 500);
         }
       };
       fileReader.readAsArrayBuffer(blob);
