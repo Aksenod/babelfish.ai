@@ -29,14 +29,31 @@ class AutomaticSpeechRecognitionPipeline {
             progress_callback,
         });
 
-        this.model ??= WhisperForConditionalGeneration.from_pretrained(this.model_id, {
-            dtype: {
-                encoder_model: 'fp32', // 'fp16' works too
-                decoder_model_merged: 'q4', // or 'fp32' ('fp16' is broken)
-            },
-            device: 'webgpu',
-            progress_callback,
-        });
+        if (!this.model) {
+            try {
+                console.log('Attempting to load model with WebGPU...');
+                this.model = await WhisperForConditionalGeneration.from_pretrained(this.model_id, {
+                    dtype: {
+                        encoder_model: 'fp32', // 'fp16' works too
+                        decoder_model_merged: 'q4', // or 'fp32' ('fp16' is broken)
+                    },
+                    device: 'webgpu',
+                    progress_callback,
+                });
+                console.log('Model loaded successfully with WebGPU');
+            } catch (error) {
+                console.warn('WebGPU failed, falling back to WASM:', error);
+                this.model = await WhisperForConditionalGeneration.from_pretrained(this.model_id, {
+                    dtype: {
+                        encoder_model: 'fp32',
+                        decoder_model_merged: 'q4',
+                    },
+                    device: 'wasm',
+                    progress_callback,
+                });
+                console.log('Model loaded successfully with WASM fallback');
+            }
+        }
 
         return Promise.all([this.tokenizer, this.processor, this.model]);
     }
