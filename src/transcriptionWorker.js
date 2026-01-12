@@ -70,8 +70,7 @@ async function generate({ audio, language }) {
 
     const inputs = await processor(audio);
 
-    const outputs = await model.generate({
-        ...inputs,
+    const outputs = await model.generate(inputs.input_features, {
         max_new_tokens: MAX_NEW_TOKENS,
         language,
         // Optimized parameters for faster processing
