@@ -648,7 +648,12 @@ return rms > VAD_THRESHOLD;
                         // Restart recording after a short delay
                         setTimeout(() => {
                           if (recorderRef.current && recorderRef.current.state === 'inactive') {
-                            recorderRef.current.start(TIMESLICE_MS);
+                            try {
+                              recorderRef.current.start(TIMESLICE_MS);
+                              setRecording(true);
+                            } catch (error) {
+                              console.error('Failed to restart recorder after language change:', error);
+                            }
                           }
                         }, 100);
                       }}
@@ -676,13 +681,19 @@ return rms > VAD_THRESHOLD;
                           setIsProcessing(false); // Reset processing state
                           setText(''); // Clear text
                           setTranslatedText(''); // Clear translation
+                          
+                          // Restart recording after a short delay
+                          setTimeout(() => {
+                            if (recorderRef.current && recorderRef.current.state === 'inactive') {
+                              try {
+                                recorderRef.current.start(TIMESLICE_MS);
+                                setRecording(true);
+                              } catch (error) {
+                                console.error('Failed to restart recorder after reset:', error);
+                              }
+                            }
+                          }, 100);
                         }
-                        // Restart recording after a short delay
-                        setTimeout(() => {
-                          if (recorderRef.current && recorderRef.current.state === 'inactive') {
-                            recorderRef.current.start(TIMESLICE_MS);
-                          }
-                        }, 100);
                       }
                     }}
                   >
