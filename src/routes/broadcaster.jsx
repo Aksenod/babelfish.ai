@@ -341,7 +341,9 @@ function App({ supabase }) {
           };
 
           // Start recording immediately after setup
-          recorderRef.current.start(TIMESLICE_MS);
+          if (recorderRef.current.state === 'inactive') {
+            recorderRef.current.start(TIMESLICE_MS);
+          }
 
 // Voice Activity Detection function
 const hasVoiceActivity = (audioData) => {
