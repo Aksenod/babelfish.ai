@@ -493,31 +493,23 @@ return rms > VAD_THRESHOLD;
             audio = audio.slice(-MAX_SAMPLES);
           }
 
-          // Only process if voice activity is detected
-          if (hasVoiceActivity(audio)) {
-            console.log('Voice activity detected, sending to transcription worker...');
-            setVoiceDetected(true);
-            const startTime = performance.now();
-            
-            worker.current.postMessage({
-              type: 'generate',
-              data: { audio, language },
-            });
-            
-            // Track processing time
-            setTimeout(() => {
-              const endTime = performance.now();
-              setProcessingTime(((endTime - startTime) / 1000).toFixed(2));
-            }, 100);
-            
-            setChunks([]); // Clear chunks after processing
-          } else {
-            // No voice detected, continue recording
-            console.log('No voice activity detected, continuing recording...');
-            setVoiceDetected(false);
-            setChunks([]); // Clear silent chunks
-            requestNewDataSafely();
-          }
+          // Only process if voice activity is detected (temporarily disabled for testing)
+          console.log('Processing audio (VAD temporarily disabled)...');
+          setVoiceDetected(true);
+          const startTime = performance.now();
+          
+          worker.current.postMessage({
+            type: 'generate',
+            data: { audio, language },
+          });
+          
+          // Track processing time
+          setTimeout(() => {
+            const endTime = performance.now();
+            setProcessingTime(((endTime - startTime) / 1000).toFixed(2));
+          }, 100);
+          
+          setChunks([]); // Clear chunks after processing
         } catch (error) {
           console.error('Audio processing error:', error);
           
