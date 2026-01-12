@@ -358,55 +358,36 @@ function App({ supabase }) {
   }, [status, recording, isProcessing, chunks, language]);
 
   return IS_WEBGPU_AVAILABLE ? (
-    <div className="flex flex-col h-screen mx-auto justify-end text-gray-800 bg-white">
-      <div className="h-full overflow-auto scrollbar-thin flex justify-center items-center flex-col relative">
-        <GitHubLink url="https://github.com/supabase-community/babelfish.ai" />
-        <div className="flex flex-col items-center mb-1 max-w-[400px] text-center">
-          <h1 className="text-4xl font-bold mb-1">
-            Babelfish.ai - Broadcaster
-          </h1>
-          <h2 className="text-xl font-semibold">
-            Real-time in-browser speech recognition & decentralized in-browser
-            AI translation.
-          </h2>
-        </div>
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Header with controls */}
+      <div className="bg-white shadow-sm border-b border-gray-200 p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col items-center mb-1 text-center">
+            <h1 className="text-3xl font-bold mb-1 text-gray-800">
+              Babelfish.ai - Broadcaster
+            </h1>
+            <h2 className="text-lg text-gray-600 mb-4">
+              Real-time speech recognition & AI translation
+            </h2>
+          </div>
 
-        <div className="flex flex-col items-center px-4">
           {status === null && (
-            <>
-              <p className="max-w-[480px] mb-4">
-                <br />
+            <div className="text-center mb-4">
+              <p className="max-w-[600px] mx-auto text-gray-600 mb-4">
                 You are about to load{' '}
                 <a
                   href="https://huggingface.co/onnx-community/whisper-base"
                   target="_blank"
                   rel="noreferrer"
-                  className="font-medium underline"
+                  className="font-medium underline text-blue-600"
                 >
                   whisper-base
                 </a>
-                , a 73 million parameter speech recognition model that is
-                optimized for inference on the web. Once downloaded, the model
-                (~200&nbsp;MB) will be cached and reused when you revisit the
-                page.
-                <br />
-                <br />
-                Everything runs directly in your browser using{' '}
-                <a
-                  href="https://huggingface.co/docs/transformers.js"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  🤗&nbsp;Transformers.js
-                </a>{' '}
-                and ONNX Runtime Web, meaning no data is sent to a server. You
-                can even disconnect from the internet after the model has
-                loaded!
+                , a 73 million parameter speech recognition model optimized for web. 
+                Once downloaded, the model (~200MB) will be cached and reused.
               </p>
-
               <button
-                className="border px-4 py-2 rounded-lg bg-blue-400 text-white hover:bg-blue-500 disabled:bg-blue-100 disabled:cursor-not-allowed select-none"
+                className="border px-6 py-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:bg-blue-200 disabled:cursor-not-allowed select-none font-medium text-lg"
                 onClick={() => {
                   worker.current.postMessage({ type: 'load' });
                   setStatus('loading');
@@ -415,18 +396,16 @@ function App({ supabase }) {
               >
                 START TRANSCRIBING
               </button>
-            </>
+            </div>
           )}
 
           {status === 'ready' && (
-            <>
-              <p className="max-w-[480px] mb-4">
-                Your Broadcast Channel ID is{' '}
-                <pre className="inline-block bg-gray-20 py-1 px-2 rounded-md text-blue-500 font-medium">
+            <div className="text-center mb-4">
+              <p className="text-gray-600 mb-2">
+                Channel ID:{' '}
+                <pre className="inline-block bg-gray-100 px-3 py-1 rounded-md text-blue-600 font-mono">
                   {channelId.current}
                 </pre>
-                . Send this link to your friends so they can receive the
-                broadcast and translate it in realtime!
               </p>
               <a
                 href={`${import.meta.env.BASE_URL}#/receiver/${
@@ -434,39 +413,18 @@ function App({ supabase }) {
                 }`}
                 target="_blank"
                 rel="noreferrer"
-                className="border px-4 py-2 rounded-lg bg-blue-400 text-white hover:bg-blue-500 disabled:bg-blue-100 disabled:cursor-not-allowed select-none"
+                className="inline-block border px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 font-medium"
               >
-                {`${import.meta.env.VITE_DOMAIN}${
-                  import.meta.env.BASE_URL
-                }#/receiver/${channelId.current}`}
+                Share Receiver Link
               </a>
-            </>
-          )}
-
-          {/* Message Feed - prominently displayed */}
-          {status === 'ready' && messageHistory.length > 0 && (
-            <div className="w-full max-w-[600px] mt-6">
-              <h3 className="text-lg font-semibold mb-3 text-center">Conversation History</h3>
-              <MessageFeed messages={messageHistory} />
             </div>
           )}
 
-          <div className="w-[500px] p-2">
-            <AudioVisualizer className="w-full rounded-lg" stream={stream} />
-            {status === 'ready' && (
-              <>
-                {tps && (
-                  <div className="text-right text-xs text-gray-500 mt-1">
-                    {tps.toFixed(2)} tok/s
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          {/* Language selectors */}
           {status === 'ready' && (
-            <div className="relative w-full flex justify-center gap-4">
-              <div>
-                <label className="text-sm text-gray-600">Speech Language:</label>
+            <div className="flex justify-center gap-6 mb-4">
+              <div className="text-center">
+                <label className="text-sm text-gray-600 block mb-1">Speech Language:</label>
                 <LanguageSelector
                   language={language}
                   setLanguage={(e) => {
@@ -477,8 +435,8 @@ function App({ supabase }) {
                   }}
                 />
               </div>
-              <div>
-                <label className="text-sm text-gray-600">Translation Language:</label>
+              <div className="text-center">
+                <label className="text-sm text-gray-600 block mb-1">Translation Language:</label>
                 <LanguageSelector
                   language={targetLanguage}
                   setLanguage={(e) => {
@@ -488,7 +446,7 @@ function App({ supabase }) {
                 />
               </div>
               <button
-                className="border rounded-lg px-2 absolute right-2"
+                className="border rounded-lg px-3 py-1 text-sm hover:bg-gray-100"
                 onClick={() => {
                   recorderRef.current?.stop();
                   recorderRef.current?.start();
@@ -498,40 +456,72 @@ function App({ supabase }) {
               </button>
             </div>
           )}
-          {status === 'loading' && (
-            <div className="w-full max-w-[500px] text-left mx-auto p-4">
-              <p className="text-center">{loadingMessage}</p>
-              {progressItems.map(({ file, progress, total }, i) => (
-                <Progress
-                  key={i}
-                  text={file}
-                  percentage={progress}
-                  total={total}
-                />
-              ))}
-            </div>
-          )}
-          {translationStatus === 'loading' && (
-            <div className="w-full max-w-[500px] text-left mx-auto p-4">
-              <p className="text-center">Loading translation model...</p>
-              {translationProgressItems.map(({ file, progress, total }, i) => (
-                <Progress
-                  key={i}
-                  text={file}
-                  percentage={progress}
-                  total={total}
-                />
-              ))}
-            </div>
+        </div>
+      </div>
+
+      {/* Main Message Feed Area */}
+      <div className="flex-1 p-4 overflow-hidden">
+        <div className="max-w-7xl mx-auto h-full">
+          {status === 'ready' && (
+            <MessageFeed messages={messageHistory} />
           )}
         </div>
       </div>
+
+      {/* Bottom controls bar */}
+      {status === 'ready' && (
+        <div className="bg-white border-t border-gray-200 p-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <AudioVisualizer className="w-32 h-16 rounded-lg" stream={stream} />
+                <div className="text-sm text-gray-600">
+                  {recording ? (
+                    <span className="flex items-center">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+                      Recording...
+                    </span>
+                  ) : (
+                    'Ready'
+                  )}
+                </div>
+              </div>
+              {tps && (
+                <div className="text-sm text-gray-500">
+                  {tps.toFixed(2)} tok/s
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading states */}
+      {status === 'loading' && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-[500px] text-left">
+            <p className="text-center text-lg font-medium mb-4">{loadingMessage}</p>
+            {progressItems.map(({ file, progress, total }, i) => (
+              <Progress key={i} text={file} percentage={progress} total={total} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {translationStatus === 'loading' && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-[500px] text-left">
+            <p className="text-center text-lg font-medium mb-4">Loading translation model...</p>
+            {translationProgressItems.map(({ file, progress, total }, i) => (
+              <Progress key={i} text={file} percentage={progress} total={total} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   ) : (
     <div className="fixed w-screen h-screen bg-black z-10 bg-opacity-[92%] text-white text-2xl font-semibold flex justify-center items-center text-center">
-      WebGPU is not supported
-      <br />
-      by this browser :&#40;
+      WebGPU is not supported by this browser :&#40;
     </div>
   );
 }

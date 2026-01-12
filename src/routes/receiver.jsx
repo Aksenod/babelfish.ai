@@ -41,18 +41,27 @@ function App({ supabase }) {
   }, [channelId, supabase]);
 
   return (
-    <div className="flex flex-col h-screen mx-auto justify-end text-gray-800 bg-white">
-      <div className="h-full overflow-auto scrollbar-thin flex justify-center items-center flex-col relative">
-        <GitHubLink url="https://github.com/supabase-community/babelfish.ai" />
-        <div className="flex flex-col items-center mb-1 max-w-[400px] text-center">
-          <h1 className="text-4xl font-bold mb-1">Babelfish.ai - Receiver</h1>
-          <h2 className="text-xl font-semibold">
-            Real-time in-browser speech recognition & decentralized in-browser
-            AI translation.
-          </h2>
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col items-center text-center">
+            <h1 className="text-3xl font-bold mb-1 text-gray-800">
+              Babelfish.ai - Receiver
+            </h1>
+            <h2 className="text-lg text-gray-600 mb-2">
+              Real-time speech recognition & AI translation
+            </h2>
+            <p className="text-sm text-gray-500">
+              Receiving from channel: <span className="font-mono bg-gray-100 px-2 py-1 rounded">{channelId}</span>
+            </p>
+          </div>
         </div>
+      </div>
 
-        <div className="w-[500px] p-2">
+      {/* Main Message Feed Area */}
+      <div className="flex-1 p-4 overflow-hidden">
+        <div className="max-w-7xl mx-auto h-full">
           <MessageFeed messages={messageHistory} />
         </div>
       </div>
