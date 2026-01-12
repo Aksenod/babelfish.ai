@@ -53,7 +53,8 @@ self.addEventListener('message', async (event) => {
         callback_function: x => {
             self.postMessage({
                 status: 'update',
-                output: translator.tokenizer.decode(x[0].output_token_ids, { skip_special_tokens: true })
+                output: translator.tokenizer.decode(x[0].output_token_ids, { skip_special_tokens: true }),
+                messageId: event.data.messageId
             });
         }
     });
@@ -62,5 +63,6 @@ self.addEventListener('message', async (event) => {
     self.postMessage({
         status: 'complete',
         output: output,
+        messageId: event.data.messageId
     });
 });

@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import MessageFeed from '../components/MessageFeed';
 import GitHubLink from '../components/GitHubLink';
 import { useParams } from 'react-router-dom';
 
 function App({ supabase }) {
-  // Inputs and outputs
-  const [transcript, setTranscript] = useState('');
-  const [translation, setTranslation] = useState('');
-  const [sourceLanguage, setSourceLanguage] = useState('');
+  // Message history
+  const [messageHistory, setMessageHistory] = useState([]);
 
   // Broadcast
   const { channelId } = useParams();
@@ -17,12 +16,25 @@ function App({ supabase }) {
     channel
       .on('broadcast', { event: 'transcript' }, ({ payload }) => {
         if (payload.translated) {
-          // This is a translated message
-          setTranslation(payload.message);
+          // This is a translated message - update existing message
+          setMessageHistory(prev => 
+            prev.map(msg => 
+              msg.original === payload.message && !msg.translation
+                ? { ...msg, translation: payload.message }
+                : msg
+            )
+          );
         } else {
-          // This is an original transcript
-          setTranscript(payload.message);
-          setSourceLanguage(payload.language);
+          // This is an original transcript - add new message
+          const newMessage = {
+            id: Date.now() + Math.random(), // Unique ID
+            original: payload.message,
+            translation: null,
+            timestamp: new Date(),
+            language: payload.language,
+            targetLanguage: null // Will be known when translation arrives
+          };
+          setMessageHistory(prev => [...prev, newMessage]);
         }
       })
       .subscribe();
@@ -41,25 +53,7 @@ function App({ supabase }) {
         </div>
 
         <div className="w-[500px] p-2">
-          <div className="relative">
-            <h3 className="text-l font-semibold mb-2">
-              Original Transcript ({sourceLanguage.toUpperCase()}):
-            </h3>
-            <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2 mb-4">
-              {transcript}
-            </p>
-          </div>
-
-          {translation && (
-            <div className="relative">
-              <h3 className="text-l font-semibold mb-2">
-                Translation:
-              </h3>
-              <p className="w-full h-[80px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2">
-                {translation}
-              </p>
-            </div>
-          )}
+          <MessageFeed messages={messageHistory} />
         </div>
       </div>
     </div>

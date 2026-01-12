@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 
 import { AudioVisualizer } from '../components/AudioVisualizer';
 import Progress from '../components/Progress';
+import MessageFeed from '../components/MessageFeed';
 import { LanguageSelector } from '../components/LanguageSelectorBroadcaster';
 import GitHubLink from '../components/GitHubLink';
 import broadcast from '../utils/broadcaster';
@@ -32,6 +33,7 @@ function App({ supabase }) {
   // Inputs and outputs
   const [text, setText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
+  const [messageHistory, setMessageHistory] = useState([]);
   const [tps, setTps] = useState(null);
   const [language, setLanguage] = useState('en');
   const [targetLanguage, setTargetLanguage] = useState('es'); // Default target language
@@ -136,9 +138,20 @@ function App({ supabase }) {
           const transcribedText = e.data.output[0];
           setText(transcribedText);
           
+          // Add to history immediately
+          const newMessage = {
+            id: Date.now(),
+            original: transcribedText,
+            translation: null,
+            timestamp: new Date(),
+            language: languageRef.current,
+            targetLanguage: targetLanguageRef.current
+          };
+          setMessageHistory(prev => [...prev, newMessage]);
+          
           // Send to translation worker
           if (translationWorker.current && translationStatus === 'ready') {
-            translateText(transcribedText);
+            translateText(transcribedText, newMessage.id);
           }
           
           broadcast({
@@ -189,6 +202,19 @@ function App({ supabase }) {
 
         case 'complete':
           setTranslatedText(e.data.output[0].translation_text);
+          
+          // Update message history with translation
+          const messageId = e.data.messageId;
+          if (messageId) {
+            setMessageHistory(prev => 
+              prev.map(msg => 
+                msg.id === messageId 
+                  ? { ...msg, translation: e.data.output[0].translation_text }
+                  : msg
+              )
+            );
+          }
+          
           // Broadcast translated text
           broadcast({
             channel,
@@ -212,7 +238,7 @@ function App({ supabase }) {
   }, []);
 
   // Translation function
-  const translateText = (textToTranslate) => {
+  const translateText = (textToTranslate, messageId) => {
     if (!textToTranslate || !translationWorker.current) return;
     
     const sourceLang = languageMapping[languageRef.current] || 'eng_Latn';
@@ -220,6 +246,14 @@ function App({ supabase }) {
     
     if (sourceLang === targetLang) {
       setTranslatedText(textToTranslate);
+      // Update history with same text as translation
+      setMessageHistory(prev => 
+        prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, translation: textToTranslate }
+            : msg
+        )
+      );
       return;
     }
     
@@ -227,6 +261,7 @@ function App({ supabase }) {
       text: textToTranslate,
       src_lang: sourceLang,
       tgt_lang: targetLang,
+      messageId: messageId, // Pass message ID to update correct message
     });
   };
 
@@ -410,21 +445,11 @@ function App({ supabase }) {
             <AudioVisualizer className="w-full rounded-lg" stream={stream} />
             {status === 'ready' && (
               <>
-                <div className="relative">
-                  <p className="w-full h-[60px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2 mb-2">
-                    <strong>Original:</strong> {text}
-                  </p>
-                  {tps && (
-                    <span className="absolute bottom-0 right-0 px-1">
-                      {tps.toFixed(2)} tok/s
-                    </span>
-                  )}
-                </div>
-                {translationStatus === 'ready' && (
-                  <div className="relative">
-                    <p className="w-full h-[60px] overflow-y-auto overflow-wrap-anywhere border rounded-lg p-2 mb-2">
-                      <strong>Translation:</strong> {translatedText}
-                    </p>
+                <MessageFeed messages={messageHistory} />
+                
+                {tps && (
+                  <div className="text-right text-xs text-gray-500 mt-1">
+                    {tps.toFixed(2)} tok/s
                   </div>
                 )}
               </>
