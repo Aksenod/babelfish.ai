@@ -66,27 +66,32 @@ function App({ supabase }) {
   // We use the `useEffect` hook to setup the worker as soon as the `App` component is mounted.
   useEffect(() => {
     if (!worker.current) {
-      // Create the worker if it does not yet exist.
+      // Create the transcription worker
+      console.log('Creating transcription worker...');
       worker.current = new Worker(
         new URL('../transcriptionWorker.js', import.meta.url),
         {
           type: 'module',
         }
       );
+      console.log('Transcription worker created');
     }
 
     if (!translationWorker.current) {
       // Create the translation worker
+      console.log('Creating translation worker...');
       translationWorker.current = new Worker(
         new URL('../translationWorker.js', import.meta.url),
         {
           type: 'module',
         }
       );
+      console.log('Translation worker created');
     }
 
     // Create a callback function for messages from the transcription worker thread.
     const onMessageReceived = (e) => {
+      console.log('Received message from transcription worker:', e.data.status, e.data);
       switch (e.data.status) {
         case 'loading':
           // Model file start load: add a new progress item to the list.
