@@ -403,6 +403,14 @@ return rms > VAD_THRESHOLD;
     return rms > VAD_THRESHOLD;
   };
 
+  // Add debugging for recorder state
+  useEffect(() => {
+    console.log('Recorder state:', recorderRef.current?.state);
+    console.log('Recording state:', recording);
+    console.log('Status:', status);
+    console.log('Chunks length:', chunks.length);
+  }, [recording, status, chunks]);
+
   useEffect(() => {
     if (!recorderRef.current) return;
     if (!recording) return;
