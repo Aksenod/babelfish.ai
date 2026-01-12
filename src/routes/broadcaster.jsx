@@ -17,7 +17,7 @@ const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
 const TIMESLICE_MS = 2000; // Request data every 2 seconds
 
 // Voice Activity Detection threshold
-const VAD_THRESHOLD = 0.01; // Minimum audio level to consider as speech
+const VAD_THRESHOLD = 0.001; // Reduced from 0.01 to be more sensitive
 
 function App({ supabase }) {
   // Create a reference to the worker object.
@@ -344,6 +344,7 @@ function App({ supabase }) {
             recorderRef.current.start(TIMESLICE_MS);
           };
           recorderRef.current.ondataavailable = (e) => {
+            console.log(`Audio chunk received: ${e.data.size} bytes`);
             if (e.data.size > 0) {
               setChunks((prev) => [...prev, e.data]);
             } else {
@@ -379,6 +380,8 @@ function App({ supabase }) {
       sum += audioData[i] * audioData[i];
     }
     const rms = Math.sqrt(sum / audioData.length);
+    
+    console.log(`Audio RMS: ${rms.toFixed(6)}, Threshold: ${VAD_THRESHOLD}`);
     
     return rms > VAD_THRESHOLD;
   };
@@ -490,6 +493,7 @@ function App({ supabase }) {
 
           // Only process if voice activity is detected
           if (hasVoiceActivity(audio)) {
+            console.log('Voice activity detected, sending to transcription worker...');
             setVoiceDetected(true);
             const startTime = performance.now();
             
@@ -507,6 +511,7 @@ function App({ supabase }) {
             setChunks([]); // Clear chunks after processing
           } else {
             // No voice detected, continue recording
+            console.log('No voice activity detected, continuing recording...');
             setVoiceDetected(false);
             setChunks([]); // Clear silent chunks
             recorderRef.current?.requestData();

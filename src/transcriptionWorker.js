@@ -76,6 +76,8 @@ async function generate({ audio, language }) {
     if (processing) return;
     processing = true;
 
+    console.log('Transcription worker received audio data:', audio.length, 'samples, language:', language);
+
     // Tell the main thread we are starting
     self.postMessage({ status: 'start' });
 
