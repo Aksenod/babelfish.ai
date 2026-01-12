@@ -14,7 +14,7 @@ const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 const WHISPER_SAMPLING_RATE = 16_000;
 const MAX_AUDIO_LENGTH = 10; // Reduced from 30 to 10 seconds for faster processing
 const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
-const TIMESLICE_MS = 2000; // Request data every 2 seconds
+const TIMESLICE_MS = 500; // Request data every 0.5 seconds for more responsive audio capture
 
 // Voice Activity Detection threshold
 const VAD_THRESHOLD = 0.0001; // Very sensitive threshold
@@ -340,6 +340,17 @@ function App({ supabase }) {
             setChunks([]);
           };
 
+          recorderRef.current.ondataavailable = (e) => {
+            console.log(`Audio chunk received: ${e.data.size} bytes, recorder state: ${recorderRef.current?.state}, timestamp: ${new Date().toISOString()}`);
+            if (e.data.size > 0) {
+              setChunks((prev) => [...prev, e.data]);
+            } else {
+              // Empty chunk received, check recorder state before requesting new data
+              console.log('Empty chunk received, requesting new data...');
+              requestNewDataSafely();
+            }
+          };
+
           // Start recording immediately after setup
           if (recorderRef.current.state === 'inactive') {
             recorderRef.current.start(TIMESLICE_MS);
@@ -639,13 +650,9 @@ return rms > VAD_THRESHOLD;
                       language={language}
                       setLanguage={(e) => {
                         // Proper cleanup before language change
-                        if (recorderRef.current && recorderRef.current.state === 'recording') {
-                          recorderRef.current.stop();
-                          setChunks([]); // Clear old chunks
-                          setRecording(false); // Reset recording state
+                        if (recorderRef.current) {
+                          languageRef.current = e;
                         }
-                        setLanguage(e);
-                        languageRef.current = e;
                         // Restart recording after a short delay
                         setTimeout(() => {
                           if (recorderRef.current && recorderRef.current.state === 'inactive') {
