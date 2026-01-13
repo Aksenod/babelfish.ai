@@ -172,6 +172,7 @@ function Translator() {
         audioContextRef.current.close();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Voice Activity Detection parameters
@@ -676,7 +677,6 @@ function Translator() {
         });
         
         // Пытаемся обновить последнее сообщение, если оно еще не переведено
-        let messageUpdated = false;
         
         setMessages((prev) => {
           if (prev.length === 0) {
@@ -714,7 +714,6 @@ function Translator() {
           // 2. Оно было создано недавно (в пределах окна объединения)
           if (lastMessage.translated === null && lastMessageAge <= mergeWindow) {
             messageId = lastMessage.id;
-            messageUpdated = true;
             
             console.log('[MERGE:message] ✓ Обновление последнего сообщения', {
               messageId: lastMessage.id,
@@ -898,7 +897,6 @@ function Translator() {
 
   const handleDeleteMessage = (messageId) => {
     // Показываем тост с информацией о сообщении
-    const message = messages.find((msg) => msg.id === messageId);
     setDeleteToast({
       messageId,
       text: 'Сообщение будет удалено',

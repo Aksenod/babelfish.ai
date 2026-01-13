@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import MessageFeed from '../components/MessageFeed';
-import GitHubLink from '../components/GitHubLink';
 import { useParams } from 'react-router-dom';
 
 function App({ supabase }) {

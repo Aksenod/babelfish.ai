@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Toast({ message, onCancel, onComplete, duration = 4000 }) {
   const [isVisible, setIsVisible] = useState(false);

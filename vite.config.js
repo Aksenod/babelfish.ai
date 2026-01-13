@@ -11,8 +11,8 @@ export default defineConfig({
         target: 'https://translate.api.cloud.yandex.net',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/yandex-translate/, '/translate/v2/translate'),
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
             // Передаём Authorization заголовок из оригинального запроса
             const authHeader = req.headers['authorization'];
             if (authHeader) {

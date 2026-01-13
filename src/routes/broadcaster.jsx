@@ -4,7 +4,6 @@ import { AudioVisualizer } from '../components/AudioVisualizer';
 import Progress from '../components/Progress';
 import MessageFeed from '../components/MessageFeed';
 import { LanguageSelector } from '../components/LanguageSelectorBroadcaster';
-import GitHubLink from '../components/GitHubLink';
 import broadcast from '../utils/broadcaster';
 import { randomId } from '../utils/utils';
 import { languageMapping } from '../utils/languages';
@@ -15,9 +14,6 @@ const WHISPER_SAMPLING_RATE = 16_000;
 const MAX_AUDIO_LENGTH = 10; // Reduced from 30 to 10 seconds for faster processing
 const MAX_SAMPLES = WHISPER_SAMPLING_RATE * MAX_AUDIO_LENGTH;
 const TIMESLICE_MS = 500; // Request data every 0.5 seconds for more responsive audio capture
-
-// Voice Activity Detection threshold
-const VAD_THRESHOLD = 0.0001; // Very sensitive threshold
 
 function App({ supabase }) {
   // Create a reference to the worker object.
@@ -30,16 +26,15 @@ function App({ supabase }) {
   const [status, setStatus] = useState(null);
   const [translationStatus, setTranslationStatus] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [translationLoadingMessage, setTranslationLoadingMessage] = useState('');
   const [progressItems, setProgressItems] = useState([]);
   const [translationProgressItems, setTranslationProgressItems] = useState([]);
 
   // Inputs and outputs
-  const [text, setText] = useState('');
-  const [translatedText, setTranslatedText] = useState('');
+  const [, setText] = useState('');
+  const [, setTranslatedText] = useState('');
   const [messageHistory, setMessageHistory] = useState([]);
   const [tps, setTps] = useState(null);
-  const [language, setLanguage] = useState('en');
+  const [language] = useState('en');
   const [targetLanguage, setTargetLanguage] = useState('ru'); // Default target language - Russian
   const languageRef = useRef(language);
   const targetLanguageRef = useRef(targetLanguage);
@@ -146,7 +141,7 @@ function App({ supabase }) {
           }
           break;
 
-        case 'complete':
+        case 'complete': {
           // Generation complete: re-enable the "Generate" button
           console.log('Transcription completed:', e.data.output);
           setIsProcessing(false);
@@ -180,6 +175,7 @@ function App({ supabase }) {
             messageId: newMessage.id, // Send message ID for receiver
           });
           break;
+        }
       }
     };
 
@@ -217,7 +213,7 @@ function App({ supabase }) {
           setTranslatedText(e.data.output);
           break;
 
-        case 'complete':
+        case 'complete': {
           setTranslatedText(e.data.output[0].translation_text);
           
           // Update message history with translation
@@ -241,6 +237,7 @@ function App({ supabase }) {
             messageId: messageId, // Send same message ID
           });
           break;
+        }
       }
     };
 
@@ -253,6 +250,7 @@ function App({ supabase }) {
       worker.current.removeEventListener('message', onMessageReceived);
       translationWorker.current.removeEventListener('message', onTranslationMessageReceived);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Translation function
@@ -367,22 +365,6 @@ function App({ supabase }) {
               }
             }, TIMESLICE_MS);
           }
-
-// Voice Activity Detection function
-const hasVoiceActivity = (audioData) => {
-if (!audioData || audioData.length === 0) return false;
-  
-// Calculate RMS (Root Mean Square) to detect voice activity
-let sum = 0;
-for (let i = 0; i < audioData.length; i++) {
-  sum += audioData[i] * audioData[i];
-}
-const rms = Math.sqrt(sum / audioData.length);
-  
-console.log(`Audio RMS: ${rms.toFixed(6)}, Threshold: ${VAD_THRESHOLD}`);
-  
-return rms > VAD_THRESHOLD;
-};
         })
         .catch((err) => console.error('The following error occurred: ', err));
     } else {
@@ -406,20 +388,19 @@ return rms > VAD_THRESHOLD;
     }
   };
 
-  // Voice Activity Detection function
-  const hasVoiceActivity = (audioData) => {
-    if (!audioData || audioData.length === 0) return false;
+
+  // Helper function to create test audio buffer
+  const createTestAudioBuffer = () => {
+    console.warn('Creating silent audio buffer as fallback due to decoding errors');
+    const buffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
+    const data = buffer.getChannelData(0);
     
-    // Calculate RMS (Root Mean Square) to detect voice activity
-    let sum = 0;
-    for (let i = 0; i < audioData.length; i++) {
-      sum += audioData[i] * audioData[i];
+    // Generate silent audio (all zeros) to prevent processing errors
+    for (let i = 0; i < MAX_SAMPLES; i++) {
+      data[i] = 0;
     }
-    const rms = Math.sqrt(sum / audioData.length);
     
-    console.log(`Audio RMS: ${rms.toFixed(6)}, Threshold: ${VAD_THRESHOLD}`);
-    
-    return rms > VAD_THRESHOLD;
+    return buffer;
   };
 
   // Add debugging for recorder state
@@ -485,20 +466,6 @@ return rms > VAD_THRESHOLD;
               console.warn('Fallback decoding failed:', fallbackError.message);
               audioBuffer = createTestAudioBuffer();
             }
-          }
-          
-          // Helper function to create test audio buffer
-          function createTestAudioBuffer() {
-            console.warn('Creating silent audio buffer as fallback due to decoding errors');
-            const buffer = audioContextRef.current.createBuffer(1, MAX_SAMPLES, WHISPER_SAMPLING_RATE);
-            const data = buffer.getChannelData(0);
-            
-            // Generate silent audio (all zeros) to prevent processing errors
-            for (let i = 0; i < MAX_SAMPLES; i++) {
-              data[i] = 0;
-            }
-            
-            return buffer;
           }
           
           let audio = audioBuffer.getChannelData(0);

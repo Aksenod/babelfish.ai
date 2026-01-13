@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom/client';
 import Translator from './routes/translator';
 import './index.css';
 
+// eslint-disable-next-line react-refresh/only-export-components
 function App() {
   return <Translator />;
 }
