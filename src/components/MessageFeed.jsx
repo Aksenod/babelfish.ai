@@ -75,7 +75,7 @@ export default function MessageFeed({ messages, onDeleteMessage, error, isRecord
       aria-live="polite"
     >
       {/* Decorative card - always first, full width, transparent */}
-      <div className="w-full h-[68px] opacity-0 pointer-events-none" aria-hidden="true"></div>
+      <div className="hidden md:block w-full h-[68px] opacity-0 pointer-events-none" aria-hidden="true"></div>
       {messages.map((message, index) => (
         <GlassCard
           key={message.id}

@@ -1787,7 +1787,7 @@ function Translator() {
         {/* Main Content Grid */}
         <main className="flex-1 min-h-0 h-full w-full">
           {/* Mobile: Swipeable horizontal container */}
-          <div className="md:hidden flex h-[calc(100dvh-140px)] overflow-hidden relative">
+          <div className="md:hidden flex h-full overflow-hidden relative">
             {/* Visual hints for swipe - left edge gradient */}
             {mobileActiveColumn > 0 && (
               <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-900/20 to-transparent pointer-events-none z-20"></div>
@@ -1803,7 +1803,7 @@ function Translator() {
               }}
             >
               {/* Left Sidebar (History) - Mobile */}
-              <aside className="w-screen flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-20 pb-5 md:pt-5">
+              <aside className="w-screen flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-0 pb-0 md:pt-5">
                 <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 md:mt-[60px]">
                   <SessionHistory 
                     currentSessionId={sessionId}
@@ -1816,7 +1816,7 @@ function Translator() {
 
               {/* Center Translation Area - Mobile */}
               <section className="w-screen flex-shrink-0 flex flex-col gap-5 min-h-0 overflow-visible pt-20 md:pt-0">
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hidden pb-24 md:pb-0">
+                <div className="flex-1 min-h-0 h-full overflow-y-auto overflow-x-visible scrollbar-hidden pb-0 md:pb-0">
                   <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} error={error} isRecording={isRecording} />
                 </div>
               </section>
