@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { createSession } from '../utils/sessionManager';
 
 // Constants
@@ -115,9 +116,9 @@ export default function CreateSessionDrawer({ isOpen, onClose, onSessionCreated 
 
   if (!isOpen) return null;
 
-  return (
+  const drawerContent = (
     <div 
-      className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity duration-300 ${
+      className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] transition-opacity duration-300 ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
       onClick={handleBackdropClick}
@@ -127,7 +128,7 @@ export default function CreateSessionDrawer({ isOpen, onClose, onSessionCreated 
     >
       <div 
         ref={drawerRef}
-        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] ui-glass-panel-thick shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl ${
+        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] bg-white shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl z-[10000] ${
           isVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -227,4 +228,6 @@ export default function CreateSessionDrawer({ isOpen, onClose, onSessionCreated 
       </div>
     </div>
   );
+
+  return createPortal(drawerContent, document.body);
 }

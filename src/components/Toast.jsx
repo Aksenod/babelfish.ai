@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import GlassCard from './ui/GlassCard';
+import Button from './ui/Button';
 
 export default function Toast({ message, onCancel, onComplete, duration = 3000, topOffset = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
@@ -53,33 +55,36 @@ export default function Toast({ message, onCancel, onComplete, duration = 3000, 
       role="alert"
       aria-live="assertive"
     >
-      <div className="bg-white rounded-lg shadow-lg border-2 border-gray-200 p-4 min-w-[280px] max-w-md">
+      <GlassCard variant="thick" rounded="xl" className="p-4 min-w-[280px] max-w-md">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
-            <p className="text-sm text-gray-800 font-medium">
+            <p className="text-sm text-slate-800 font-medium">
               {message.text || 'Сообщение будет удалено'}
             </p>
             <div className="mt-1.5 flex items-center gap-2">
-              <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div className="flex-1 h-1 bg-slate-200/50 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-500 transition-all duration-100"
+                  className="h-full bg-blue-500 transition-all duration-100 rounded-full"
                   style={{ width: `${(timeLeft / (duration / 1000)) * 100}%` }}
                 />
               </div>
-              <span className="text-xs text-gray-500 tabular-nums">
+              <span className="text-xs text-slate-500 tabular-nums">
                 {Math.ceil(timeLeft)}с
               </span>
             </div>
           </div>
-          <button
+          <Button
+            variant="floating"
+            color="blue"
+            size="sm"
             onClick={handleCancel}
-            className="px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
+            className="whitespace-nowrap !w-auto"
             aria-label="Отменить удаление"
           >
             Отменить
-          </button>
+          </Button>
         </div>
-      </div>
+      </GlassCard>
     </div>
   );
 }

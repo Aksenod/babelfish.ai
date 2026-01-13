@@ -35,9 +35,6 @@ const PauseIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 );
 
-const SaveIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-);
 
 const AlertCircleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -918,11 +915,6 @@ function Translator() {
     }
   };
 
-  // Save and exit session
-  const handleSaveAndExit = () => {
-    // Session is already saved automatically when messages are added/updated
-    navigate('/');
-  };
 
   // Проверка энергии аудио перед обработкой
   const checkAudioEnergy = async (audioBlob) => {
@@ -1591,8 +1583,20 @@ function Translator() {
     const deltaX = touch.clientX - touchStartX.current;
     const deltaY = touch.clientY - touchStartY.current;
     
+    // Увеличиваем порог для активации горизонтального свайпа до 20px
+    // Проверяем, что горизонтальное движение значительно больше вертикального
+    const horizontalThreshold = 20;
+    const verticalThreshold = 15;
+    
+    // Если уже начался вертикальный скролл, не активируем горизонтальный свайп
+    if (Math.abs(deltaY) > verticalThreshold && Math.abs(deltaY) > Math.abs(deltaX)) {
+      // Вертикальный скролл - не обрабатываем как свайп
+      isSwiping.current = false;
+      return;
+    }
+    
     // Определяем, что это горизонтальный свайп (не вертикальный скролл)
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > horizontalThreshold) {
       isSwiping.current = true;
       // Предотвращаем скролл страницы во время горизонтального свайпа
       e.preventDefault();
@@ -1767,7 +1771,7 @@ function Translator() {
               aria-label="Настройки"
             >
               <div className={`w-5 h-5 flex items-center justify-center transition-colors ${
-                isSettingsSidebarOpen ? 'text-blue-600 group-hover:text-blue-800' : 'text-slate-600 group-hover:text-slate-800'
+                (isMobile && mobileActiveColumn === 2) || (!isMobile && isSettingsSidebarOpen) ? 'text-blue-600 group-hover:text-blue-800' : 'text-slate-600 group-hover:text-slate-800'
               }`}>
                 <SettingsIcon />
               </div>
@@ -1783,7 +1787,15 @@ function Translator() {
         {/* Main Content Grid */}
         <main className="flex-1 min-h-0 h-full w-full">
           {/* Mobile: Swipeable horizontal container */}
-          <div className="md:hidden flex h-full overflow-hidden relative">
+          <div className="md:hidden flex h-[calc(100dvh-140px)] overflow-hidden relative">
+            {/* Visual hints for swipe - left edge gradient */}
+            {mobileActiveColumn > 0 && (
+              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-900/20 to-transparent pointer-events-none z-20"></div>
+            )}
+            {/* Visual hints for swipe - right edge gradient */}
+            {mobileActiveColumn < 2 && (
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-900/20 to-transparent pointer-events-none z-20"></div>
+            )}
             <div 
               className="flex h-full transition-transform duration-300 ease-out"
               style={{
@@ -1792,8 +1804,8 @@ function Translator() {
               }}
             >
               {/* Left Sidebar (History) - Mobile */}
-              <aside className="w-1/3 flex-shrink-0 flex flex-col min-h-0 overflow-visible pl-4 pr-0 pt-5 pb-5">
-                <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 mt-[60px]">
+              <aside className="w-1/3 flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-20 pb-5 md:pt-5">
+                <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 md:mt-[60px]">
                   <SessionHistory 
                     currentSessionId={sessionId}
                     onEditSession={setEditingSession}
@@ -1804,17 +1816,15 @@ function Translator() {
               </aside>
 
               {/* Center Translation Area - Mobile */}
-              <section className="w-1/3 flex-shrink-0 flex flex-col gap-5 min-h-0 overflow-visible">
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hidden pb-0">
+              <section className="w-1/3 flex-shrink-0 flex flex-col gap-5 min-h-0 overflow-visible pt-20 md:pt-0">
+                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hidden pb-24 md:pb-0">
                   <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} error={error} isRecording={isRecording} />
                 </div>
               </section>
 
               {/* Right Sidebar (Settings) - Mobile */}
-              <aside className="w-1/3 flex-shrink-0 flex-col min-h-0 overflow-visible pl-0 pr-4 pt-5 pb-5 flex">
-                <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 mt-[60px]">
-                  <SettingsSidebar />
-                </div>
+              <aside className="w-1/3 flex-shrink-0 flex-col min-h-0 overflow-visible px-4 pt-5 pb-5 flex">
+                <SettingsSidebar />
               </aside>
             </div>
           </div>
@@ -1898,23 +1908,14 @@ function Translator() {
               </button>
             )}
             {sessionState === 'stopped' && (
-              <>
-                <button
-                  onClick={handleSaveAndExit}
-                  className="h-10 w-10 rounded-full bg-slate-700/80 hover:bg-slate-600 text-white flex items-center justify-center transition-all duration-200 ease-out active:scale-95 border border-slate-500/50 shadow-md"
-                  aria-label="Сохранить и выйти"
-                >
-                  <SaveIcon />
-                </button>
-                <button
-                  onClick={handleStartSession}
-                  className="group h-10 px-6 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
-                  aria-label="Запустить сессию снова"
-                >
-                  <PlayIcon />
-                  <span className="text-xs font-bold uppercase tracking-wide">Продолжить</span>
-                </button>
-              </>
+              <button
+                onClick={handleStartSession}
+                className="group h-10 px-6 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
+                aria-label="Запустить сессию снова"
+              >
+                <PlayIcon />
+                <span className="text-xs font-bold uppercase tracking-wide">Продолжить</span>
+              </button>
             )}
           </div>
         </div>

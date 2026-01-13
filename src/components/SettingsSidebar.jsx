@@ -143,7 +143,7 @@ export default function SettingsSidebar() {
   };
 
   return (
-    <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl flex flex-col gap-2 overflow-y-auto overflow-x-visible" style={{ maxHeight: 'calc(100% - 60px)', marginTop: '60px' }}>
+    <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl flex flex-col gap-2 overflow-y-auto overflow-x-visible md:mt-[60px]" style={{ maxHeight: 'calc(100% - 60px)' }}>
       <div className="p-4 flex flex-col gap-2 overflow-visible">
         {/* Header */}
         <div className="flex items-center justify-between">

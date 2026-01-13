@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
+// Constants
+const DRAWER_ANIMATION_DURATION = 300; // ms
 
 // Icons
 const KeyIcon = () => (
@@ -77,15 +81,16 @@ export default function ApiKeysModal({ isOpen, onClose }) {
     document.addEventListener('keydown', handleTab);
 
     // Focus first input when modal opens
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       if (firstInputRef.current) {
         firstInputRef.current.focus();
       }
-    }, 100);
+    }, DRAWER_ANIMATION_DURATION);
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleTab);
+      clearTimeout(focusTimer);
     };
   }, [isOpen, onClose]);
 
@@ -104,9 +109,11 @@ export default function ApiKeysModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  return (
+  const drawerContent = (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity duration-300"
+      className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] transition-opacity duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -114,14 +121,9 @@ export default function ApiKeysModal({ isOpen, onClose }) {
     >
       <div 
         ref={modalRef}
-        className={`fixed right-0 top-0 h-full w-full sm:w-96 md:w-[480px] ui-glass-panel-thick shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-l-3xl ${
+        className={`fixed right-0 top-0 h-full w-full sm:w-96 md:w-[480px] bg-white shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-l-3xl z-[10000] ${
           isVisible ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{
-          background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%)',
-          backdropFilter: 'blur(40px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(120%)',
-        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 sm:p-8">
@@ -134,6 +136,7 @@ export default function ApiKeysModal({ isOpen, onClose }) {
             <h2 id="api-keys-title" className="text-2xl font-bold text-slate-800">API Ключи</h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="w-9 h-9 rounded-xl ui-glass-panel-thin flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             aria-label="Закрыть"
@@ -269,12 +272,14 @@ export default function ApiKeysModal({ isOpen, onClose }) {
         {/* Footer Actions */}
         <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-white/20">
           <button
+            type="button"
             onClick={handleSave}
             className="w-full px-6 py-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-semibold"
           >
             Сохранить
           </button>
           <button
+            type="button"
             onClick={onClose}
             className="w-full px-6 py-3 rounded-full ui-glass-panel-thin border border-white/40 text-slate-700 hover:text-slate-800 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all active:scale-95 font-medium"
           >
@@ -285,4 +290,6 @@ export default function ApiKeysModal({ isOpen, onClose }) {
       </div>
     </div>
   );
+
+  return createPortal(drawerContent, document.body);
 }

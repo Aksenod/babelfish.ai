@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+
+// Constants
+const DRAWER_ANIMATION_DURATION = 300; // ms
 
 const TRANSLATION_MODELS = [
   { value: 'yandex', label: 'Яндекс.Переводчик' },
@@ -24,8 +28,17 @@ export default function Settings({ isOpen, onClose }) {
   const [sessionContext, setSessionContext] = useState('');
   const [isApiKeysExpanded, setIsApiKeysExpanded] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const modalRef = useRef(null);
   const firstInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsVisible(true);
+    } else {
+      setIsVisible(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     // Load settings from localStorage only (для безопасности - ключи не попадают в production бандл)
@@ -93,15 +106,16 @@ export default function Settings({ isOpen, onClose }) {
     document.addEventListener('keydown', handleTab);
 
     // Focus first input when modal opens
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       if (firstInputRef.current) {
         firstInputRef.current.focus();
       }
-    }, 100);
+    }, DRAWER_ANIMATION_DURATION);
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleTab);
+      clearTimeout(focusTimer);
     };
   }, [isOpen, onClose]);
 
@@ -129,20 +143,22 @@ export default function Settings({ isOpen, onClose }) {
     }
   };
 
-  return (
+  if (!isOpen) return null;
+
+  const drawerContent = (
     <>
       {/* Backdrop */}
       <div 
-        className={`fixed inset-0 bg-black z-50 transition-opacity duration-300 ${
-          isOpen ? 'bg-opacity-50 opacity-100' : 'bg-opacity-0 opacity-0 pointer-events-none'
+        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] transition-opacity duration-300 ${
+          isVisible ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={handleBackdropClick}
       />
       
       {/* Drawer */}
       <div 
-        className={`fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
+        className={`fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[10000] transform transition-transform duration-300 ease-in-out overflow-y-auto custom-scrollbar rounded-l-3xl ${
+          isVisible ? 'translate-x-0' : 'translate-x-full'
         }`}
         ref={modalRef}
         role="dialog"
@@ -150,15 +166,21 @@ export default function Settings({ isOpen, onClose }) {
         aria-labelledby="settings-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 id="settings-title" className="text-2xl font-bold text-gray-800">Настройки</h2>
+        <div className="p-6 sm:p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl ui-glass-panel-thin flex items-center justify-center text-slate-700">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="21" y2="21"/><line x1="4" x2="20" y1="3" y2="3"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
+            </div>
+            <h2 id="settings-title" className="text-2xl font-bold text-slate-800">Настройки</h2>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 rounded p-1 transition-colors"
+            className="w-9 h-9 rounded-xl ui-glass-panel-thin flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             aria-label="Закрыть настройки"
           >
-            ×
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
 
@@ -542,22 +564,26 @@ export default function Settings({ isOpen, onClose }) {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+        <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-white/20">
           <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-          >
-            Отмена
-          </button>
-          <button
+            type="button"
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+            className="w-full px-6 py-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-semibold"
           >
             Сохранить
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-6 py-3 rounded-full ui-glass-panel-thin border border-white/40 text-slate-700 hover:text-slate-800 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all active:scale-95 font-medium"
+          >
+            Отмена
           </button>
         </div>
         </div>
       </div>
     </>
   );
+
+  return createPortal(drawerContent, document.body);
 }

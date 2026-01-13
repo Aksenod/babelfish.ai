@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import { generateSummary } from '../utils/api';
 import { updateSession, getSession } from '../utils/sessionManager';
+
+// Constants
+const DRAWER_ANIMATION_DURATION = 300; // ms
 
 // Icons
 const XIcon = () => (
@@ -68,9 +72,31 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
       }
     };
 
+    // Focus trap для доступности
+    const handleTab = (e) => {
+      if (!drawerRef.current) return;
+
+      const focusableElements = drawerRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+
     document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleTab);
+    
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleTab);
     };
   }, [isOpen, onClose]);
 
@@ -163,9 +189,11 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
   
   if (!isOpen || !displaySession) return null;
 
-  return (
+  const drawerContent = (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity duration-300"
+      className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] transition-opacity duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -173,14 +201,9 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
     >
       <div 
         ref={drawerRef}
-        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] ui-glass-panel-thick shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl ${
+        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] bg-white shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl z-[10000] ${
           isVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{
-          background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%)',
-          backdropFilter: 'blur(40px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(120%)',
-        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 sm:p-8">
@@ -196,6 +219,7 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="w-9 h-9 rounded-xl ui-glass-panel-thin flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-purple-500/50"
               aria-label="Закрыть"
@@ -352,6 +376,7 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
           {/* Footer Actions */}
           <div className="flex flex-col gap-3 pt-6 border-t border-white/20">
             <button
+              type="button"
               onClick={handleGenerateSummary}
               className="w-full px-6 py-3 rounded-full bg-purple-500 hover:bg-purple-600 text-white border border-purple-400/50 shadow-lg hover:shadow-purple-500/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               disabled={isGenerating || !displaySession.messages || displaySession.messages.length === 0}
@@ -374,6 +399,7 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
               )}
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="w-full px-6 py-3 rounded-full ui-glass-panel-thin border border-white/40 text-slate-700 hover:text-slate-800 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all active:scale-95 font-medium"
             >
@@ -384,4 +410,6 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
       </div>
     </div>
   );
+
+  return createPortal(drawerContent, document.body);
 }

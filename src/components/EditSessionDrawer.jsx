@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { updateSession } from '../utils/sessionManager';
+
+// Constants
+const DRAWER_ANIMATION_DURATION = 300; // ms
 
 // Icons
 const XIcon = () => (
@@ -40,18 +44,40 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
       }
     };
 
+    // Focus trap для доступности
+    const handleTab = (e) => {
+      if (!drawerRef.current) return;
+
+      const focusableElements = drawerRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey && document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      } else if (!e.shiftKey && document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    };
+
     document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleTab);
     
     // Focus input when drawer opens
-    setTimeout(() => {
+    const focusTimer = setTimeout(() => {
       if (inputRef.current) {
         inputRef.current.focus();
         inputRef.current.select();
       }
-    }, 300);
+    }, DRAWER_ANIMATION_DURATION);
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleTab);
+      clearTimeout(focusTimer);
     };
   }, [isOpen, onClose]);
 
@@ -98,9 +124,11 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
 
   if (!isOpen || !session) return null;
 
-  return (
+  const drawerContent = (
     <div 
-      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity duration-300"
+      className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] transition-opacity duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -108,14 +136,9 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
     >
       <div 
         ref={drawerRef}
-        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] ui-glass-panel-thick shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl ${
+        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] bg-white shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl z-[10000] ${
           isVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{
-          background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%)',
-          backdropFilter: 'blur(40px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(40px) saturate(120%)',
-        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 sm:p-8">
@@ -128,6 +151,7 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
               <h2 id="edit-session-title" className="text-2xl font-bold text-slate-800">Редактировать сессию</h2>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="w-9 h-9 rounded-xl ui-glass-panel-thin flex items-center justify-center text-slate-600 hover:text-slate-800 hover:bg-white/20 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               aria-label="Закрыть"
@@ -161,6 +185,13 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
                   setSessionName(e.target.value);
                   setError('');
                 }}
+                onKeyDown={(e) => {
+                  // Обработка Enter для лучшего UX
+                  if (e.key === 'Enter' && !isUpdating && sessionName.trim() && sessionName.trim() !== session.name) {
+                    e.preventDefault();
+                    handleSubmit(e);
+                  }
+                }}
                 placeholder="Например: Встреча команды"
                 maxLength={100}
                 className="w-full px-4 py-3 rounded-xl ui-glass-panel-thin border border-white/40 text-sm text-slate-700 bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all placeholder:text-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -183,6 +214,7 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
           {/* Footer Actions */}
           <div className="flex flex-col gap-3 mt-8 pt-6 border-t border-white/20">
             <button
+              type="submit"
               onClick={handleSubmit}
               className="w-full px-6 py-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500/50 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               disabled={isUpdating || !sessionName.trim()}
@@ -200,6 +232,7 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
               )}
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="w-full px-6 py-3 rounded-full ui-glass-panel-thin border border-white/40 text-slate-700 hover:text-slate-800 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all active:scale-95 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isUpdating}
@@ -211,4 +244,6 @@ export default function EditSessionDrawer({ isOpen, onClose, session, onSessionU
       </div>
     </div>
   );
+
+  return createPortal(drawerContent, document.body);
 }
