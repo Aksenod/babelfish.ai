@@ -171,11 +171,15 @@ export async function translateTextYandex(text, apiKey) {
     timestamp: new Date().toISOString(),
   });
 
-  // В режиме разработки используем Vite proxy, в production нужен backend прокси
+  // В режиме разработки используем Vite proxy, в production используем serverless прокси
   const isDev = import.meta.env.DEV;
+  // VITE_YANDEX_PROXY_URL должен быть задан в .env файле для production
+  // Например: VITE_YANDEX_PROXY_URL=https://your-proxy.vercel.app/api/yandex-translate
+  const proxyUrl = import.meta.env.VITE_YANDEX_PROXY_URL;
+  
   const apiUrl = isDev 
     ? '/api/yandex-translate'
-    : 'https://translate.api.cloud.yandex.net/translate/v2/translate';
+    : proxyUrl || 'https://translate.api.cloud.yandex.net/translate/v2/translate';
 
   const requestBody = {
     texts: [text],

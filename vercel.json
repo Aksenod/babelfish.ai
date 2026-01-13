@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/yandex-translate.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/yandex-translate",
+      "destination": "/api/yandex-translate.js"
+    }
+  ]
+}
