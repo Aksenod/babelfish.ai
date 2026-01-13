@@ -20,13 +20,11 @@ export default function Settings({ isOpen, onClose }) {
   const firstInputRef = useRef(null);
 
   useEffect(() => {
-    // Load settings from .env file or localStorage
-    const envOpenaiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
-    const envYandexKey = import.meta.env.VITE_YANDEX_API_KEY || '';
-    const envGoogleKey = import.meta.env.VITE_GOOGLE_API_KEY || '';
-    const savedOpenaiKey = localStorage.getItem('openai_api_key') || envOpenaiKey;
-    const savedYandexKey = localStorage.getItem('yandex_api_key') || envYandexKey;
-    const savedGoogleKey = localStorage.getItem('google_api_key') || envGoogleKey;
+    // Load settings from localStorage only (для безопасности - ключи не попадают в production бандл)
+    // В dev режиме можно использовать .env файл, но ключи не должны попадать в production
+    const savedOpenaiKey = localStorage.getItem('openai_api_key') || '';
+    const savedYandexKey = localStorage.getItem('yandex_api_key') || '';
+    const savedGoogleKey = localStorage.getItem('google_api_key') || '';
     const savedModel = localStorage.getItem('translation_model') || 'yandex';
     const savedVoiceThreshold = parseInt(localStorage.getItem('voice_threshold') || '30', 10);
     const savedSilenceDuration = parseInt(localStorage.getItem('silence_duration') || '3000', 10);
@@ -169,26 +167,22 @@ export default function Settings({ isOpen, onClose }) {
                     type="password"
                     value={openaiKey}
                     onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder={import.meta.env.VITE_OPENAI_API_KEY ? "Ключ загружен из .env файла" : "sk-..."}
+                    placeholder="sk-..."
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     aria-describedby="openai-help"
                   />
                   <p id="openai-help" className="text-xs text-gray-500 mt-1">
-                    {import.meta.env.VITE_OPENAI_API_KEY ? (
-                      <span className="text-green-600">✓ Ключ загружен из .env файла</span>
-                    ) : (
-                      <>
-                        Получите ключ на{' '}
-                        <a
-                          href="https://platform.openai.com/api-keys"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                        >
-                          platform.openai.com
-                        </a>
-                      </>
-                    )}
+                    <>
+                      Получите ключ на{' '}
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                      >
+                        platform.openai.com
+                      </a>
+                    </>
                   </p>
                 </div>
 
@@ -201,27 +195,23 @@ export default function Settings({ isOpen, onClose }) {
                     type="password"
                     value={yandexKey}
                     onChange={(e) => setYandexKey(e.target.value)}
-                    placeholder={import.meta.env.VITE_YANDEX_API_KEY ? "Ключ загружен из .env файла" : "AQVN..."}
+                    placeholder="AQVN..."
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     aria-describedby="yandex-help"
                   />
                   <p id="yandex-help" className="text-xs text-gray-500 mt-1">
-                    {import.meta.env.VITE_YANDEX_API_KEY ? (
-                      <span className="text-green-600">✓ Ключ загружен из .env файла</span>
-                    ) : (
-                      <>
-                        Получите ключ в{' '}
-                        <a
-                          href="https://console.cloud.yandex.ru/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                        >
-                          Yandex Cloud Console
-                        </a>
-                        {' '}(1M символов/день бесплатно)
-                      </>
-                    )}
+                    <>
+                      Получите ключ в{' '}
+                      <a
+                        href="https://console.cloud.yandex.ru/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                      >
+                        Yandex Cloud Console
+                      </a>
+                      {' '}(1M символов/день бесплатно)
+                    </>
                   </p>
                 </div>
 
@@ -234,26 +224,22 @@ export default function Settings({ isOpen, onClose }) {
                     type="password"
                     value={googleKey}
                     onChange={(e) => setGoogleKey(e.target.value)}
-                    placeholder={import.meta.env.VITE_GOOGLE_API_KEY ? "Ключ загружен из .env файла" : "0ead1e6d..."}
+                    placeholder="0ead1e6d..."
                     className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     aria-describedby="google-help"
                   />
                   <p id="google-help" className="text-xs text-gray-500 mt-1">
-                    {import.meta.env.VITE_GOOGLE_API_KEY ? (
-                      <span className="text-green-600">✓ Ключ загружен из .env файла</span>
-                    ) : (
-                      <>
-                        Получите ключ в{' '}
-                        <a
-                          href="https://console.cloud.google.com/apis/credentials"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                        >
-                          Google Cloud Console
-                        </a>
-                      </>
-                    )}
+                    <>
+                      Получите ключ в{' '}
+                      <a
+                        href="https://console.cloud.google.com/apis/credentials"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                      >
+                        Google Cloud Console
+                      </a>
+                    </>
                   </p>
                 </div>
               </div>

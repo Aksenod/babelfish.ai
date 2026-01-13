@@ -12,6 +12,7 @@ function Translator() {
   const [error, setError] = useState(null);
   const [isListening, setIsListening] = useState(false); // Состояние прослушивания (ожидание речи)
   const [deleteToast, setDeleteToast] = useState(null); // Состояние для тоста удаления
+  const [isSessionActive, setIsSessionActive] = useState(true); // Состояние активности сессии
 
   const recorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -24,15 +25,21 @@ function Translator() {
   const isRecordingRef = useRef(false);
   const isProcessingRef = useRef(false);
   const isListeningRef = useRef(false);
+  const isSessionActiveRef = useRef(true); // Ref для синхронного доступа к состоянию сессии
   const pendingFragmentsRef = useRef([]); // Буфер для фрагментов, ожидающих объединения
   const lastFragmentTimeRef = useRef(null); // Время последнего фрагмента
 
-  // Load API keys from .env file or localStorage (keys are stored client-side only)
-  const getApiKeys = () => ({
-    openai: import.meta.env.VITE_OPENAI_API_KEY || localStorage.getItem('openai_api_key') || '',
-    yandex: import.meta.env.VITE_YANDEX_API_KEY || localStorage.getItem('yandex_api_key') || '',
-    google: import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem('google_api_key') || '',
-  });
+  // Load API keys from localStorage only (для безопасности - ключи не попадают в бандл)
+  // В dev режиме можно использовать .env файл через Settings компонент
+  const getApiKeys = () => {
+    // Всегда используем только localStorage - ключи не попадают в production бандл
+    // Пользователь вводит ключи через Settings и они сохраняются в localStorage
+    return {
+      openai: localStorage.getItem('openai_api_key') || '',
+      yandex: localStorage.getItem('yandex_api_key') || '',
+      google: localStorage.getItem('google_api_key') || '',
+    };
+  };
 
   // Get translation model from localStorage
   const getTranslationModel = () => {
@@ -198,8 +205,15 @@ function Translator() {
       isRecording: isRecordingRef.current,
       isProcessing: isProcessingRef.current,
       isListening: isListeningRef.current,
+      isSessionActive: isSessionActiveRef.current,
       timestamp: new Date().toISOString(),
     });
+
+    // Проверяем, активна ли сессия
+    if (!isSessionActiveRef.current) {
+      console.log('[VAD:restart] Сессия не активна, перезапуск невозможен');
+      return false;
+    }
 
     // Проверяем все условия перед перезапуском
     if (!mediaStreamRef.current?.active) {
@@ -233,9 +247,16 @@ function Translator() {
       isRecording: isRecordingRef.current,
       isProcessing: isProcessingRef.current,
       isListening: isListeningRef.current,
+      isSessionActive: isSessionActiveRef.current,
       mediaStreamActive: mediaStreamRef.current?.active,
       timestamp: new Date().toISOString(),
     });
+
+    // Проверяем, активна ли сессия
+    if (!isSessionActiveRef.current) {
+      console.log('[VAD:startListening] Прослушивание не запущено - сессия не активна');
+      return;
+    }
 
     // Разрешаем прослушивание даже во время обработки, чтобы не пропускать речь пользователя
     if (isRecordingRef.current) {
@@ -264,6 +285,12 @@ function Translator() {
 
   // Check for voice activity continuously
   const checkVoiceActivity = () => {
+    // Проверяем, активна ли сессия
+    if (!isSessionActiveRef.current) {
+      console.log('[VAD:checkVoice] Проверка пропущена - сессия не активна');
+      return;
+    }
+
     if (!analyserRef.current || !dataArrayRef.current) {
       console.warn('[VAD:checkVoice] Пропуск проверки - нет analyser или dataArray', {
         hasAnalyser: !!analyserRef.current,
@@ -332,7 +359,8 @@ function Translator() {
 
     // Continue checking - продолжаем во время прослушивания или записи
     // Также продолжаем во время обработки, чтобы не пропускать новую речь пользователя
-    const shouldContinue = isListeningRef.current || isRecordingRef.current;
+    // Но только если сессия активна
+    const shouldContinue = isSessionActiveRef.current && (isListeningRef.current || isRecordingRef.current);
     
     if (shouldContinue) {
       // Используем requestAnimationFrame для плавной работы
@@ -340,11 +368,12 @@ function Translator() {
         // Используем setTimeout для контроля интервала проверки
         setTimeout(() => {
           // Проверяем, что состояние не изменилось перед следующим вызовом
-          // Продолжаем проверку во время прослушивания или записи
-          if (isListeningRef.current || isRecordingRef.current) {
+          // Продолжаем проверку во время прослушивания или записи, если сессия активна
+          if (isSessionActiveRef.current && (isListeningRef.current || isRecordingRef.current)) {
             checkVoiceActivity();
           } else {
             console.log('[VAD:checkVoice] Состояние изменилось, цикл остановлен', {
+              isSessionActive: isSessionActiveRef.current,
               isListening: isListeningRef.current,
               isRecording: isRecordingRef.current,
               timestamp: new Date().toISOString(),
@@ -353,9 +382,9 @@ function Translator() {
         }, CHECK_INTERVAL);
       });
     } else {
-      // Если прослушивание не активно, но обработка идет - перезапускаем прослушивание
+      // Если прослушивание не активно, но обработка идет и сессия активна - перезапускаем прослушивание
       // чтобы не пропустить речь пользователя во время обработки
-      if (isProcessingRef.current && !isListeningRef.current) {
+      if (isSessionActiveRef.current && isProcessingRef.current && !isListeningRef.current) {
         console.log('[VAD:checkVoice] Обработка идет, перезапускаем прослушивание', {
           isProcessing: isProcessingRef.current,
           isListening: isListeningRef.current,
@@ -492,6 +521,46 @@ function Translator() {
   // Force translation of current recording
   const handleForceTranslate = () => {
     if (isRecording && recorderRef.current && recorderRef.current.state === 'recording') {
+      stopAndProcess();
+    }
+  };
+
+  // Start session - resume listening for voice
+  const handleStartSession = () => {
+    console.log('[SESSION] Запуск сессии');
+    setIsSessionActive(true);
+    isSessionActiveRef.current = true;
+    
+    // Запускаем прослушивание, если медиа-стрим активен
+    if (mediaStreamRef.current?.active) {
+      safeRestartListening();
+    }
+  };
+
+  // Stop session - pause listening for voice
+  const handleStopSession = () => {
+    console.log('[SESSION] Остановка сессии');
+    setIsSessionActive(false);
+    isSessionActiveRef.current = false;
+    
+    // Остановить прослушивание
+    setIsListening(false);
+    isListeningRef.current = false;
+    
+    // Отменить проверку голоса
+    if (voiceActivityCheckRef.current) {
+      cancelAnimationFrame(voiceActivityCheckRef.current);
+      voiceActivityCheckRef.current = null;
+    }
+    
+    // Очистить таймеры
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    
+    // Если идет запись - остановить и обработать
+    if (isRecording && recorderRef.current?.state === 'recording') {
       stopAndProcess();
     }
   };
@@ -913,6 +982,11 @@ function Translator() {
     }
   };
 
+  // Sync session active ref with state
+  useEffect(() => {
+    isSessionActiveRef.current = isSessionActive;
+  }, [isSessionActive]);
+
   // Check if API keys are set on mount
   useEffect(() => {
     const { openai, yandex, google } = getApiKeys();
@@ -977,7 +1051,12 @@ function Translator() {
           {/* Status bar */}
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3 text-xs sm:text-sm" role="status" aria-live="polite">
             <div className="flex items-center space-x-2">
-              {isRecording ? (
+              {!isSessionActive ? (
+                <>
+                  <div className="w-3 h-3 bg-gray-400 rounded-full" aria-hidden="true"></div>
+                  <span className="text-gray-400">Сессия остановлена</span>
+                </>
+              ) : isRecording ? (
                 <>
                   <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" aria-hidden="true"></div>
                   <span className="text-gray-600">Запись...</span>
@@ -1000,6 +1079,28 @@ function Translator() {
                 Обработка...
               </span>
             )}
+            {/* Session control button */}
+            <button
+              onClick={isSessionActive ? handleStopSession : handleStartSession}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors text-xs sm:text-sm font-medium ${
+                isSessionActive
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-green-500 text-white hover:bg-green-600'
+              }`}
+              aria-label={isSessionActive ? 'Остановить сессию' : 'Запустить сессию'}
+            >
+              {isSessionActive ? (
+                <>
+                  <span className="sm:hidden">⏸</span>
+                  <span className="hidden sm:inline">⏸ Остановить сессию</span>
+                </>
+              ) : (
+                <>
+                  <span className="sm:hidden">▶</span>
+                  <span className="hidden sm:inline">▶ Запустить сессию</span>
+                </>
+              )}
+            </button>
             {isRecording && (
               <button
                 onClick={handleForceTranslate}
