@@ -3,7 +3,6 @@ import MessageFeed from '../components/MessageFeed';
 import Settings from '../components/Settings';
 import Toast from '../components/Toast';
 import { transcribeAudio, translateText } from '../utils/api';
-import { apiKeys as configApiKeys } from '../config/apiKeys';
 
 function Translator() {
   const [messages, setMessages] = useState([]);
@@ -28,11 +27,11 @@ function Translator() {
   const pendingFragmentsRef = useRef([]); // Буфер для фрагментов, ожидающих объединения
   const lastFragmentTimeRef = useRef(null); // Время последнего фрагмента
 
-  // Load API keys from config file, .env file, or localStorage (in that order)
+  // Load API keys from .env file or localStorage (keys are stored client-side only)
   const getApiKeys = () => ({
-    openai: configApiKeys.openai || import.meta.env.VITE_OPENAI_API_KEY || localStorage.getItem('openai_api_key') || '',
-    yandex: configApiKeys.yandex || import.meta.env.VITE_YANDEX_API_KEY || localStorage.getItem('yandex_api_key') || '',
-    google: configApiKeys.google || import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem('google_api_key') || '',
+    openai: import.meta.env.VITE_OPENAI_API_KEY || localStorage.getItem('openai_api_key') || '',
+    yandex: import.meta.env.VITE_YANDEX_API_KEY || localStorage.getItem('yandex_api_key') || '',
+    google: import.meta.env.VITE_GOOGLE_API_KEY || localStorage.getItem('google_api_key') || '',
   });
 
   // Get translation model from localStorage
@@ -971,7 +970,7 @@ function Translator() {
       {/* Main content */}
       <div className="flex-1 p-1 sm:p-2 overflow-hidden flex flex-col w-full min-w-0">
         <div className="max-w-7xl mx-auto h-full flex flex-col w-full min-w-0">
-          <div className="flex-1 overflow-hidden w-full min-w-0 flex">
+          <div className="flex-1 overflow-hidden w-full min-w-0">
             <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} />
           </div>
           
