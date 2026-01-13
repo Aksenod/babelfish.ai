@@ -13,7 +13,7 @@ export default function Settings({ isOpen, onClose }) {
   const [googleKey, setGoogleKey] = useState('');
   const [translationModel, setTranslationModel] = useState('yandex');
   const [voiceThreshold, setVoiceThreshold] = useState(30);
-  const [silenceDuration, setSilenceDuration] = useState(2000);
+  const [silenceDuration, setSilenceDuration] = useState(3000);
   const modalRef = useRef(null);
   const firstInputRef = useRef(null);
 
@@ -27,7 +27,7 @@ export default function Settings({ isOpen, onClose }) {
     const savedGoogleKey = localStorage.getItem('google_api_key') || envGoogleKey;
     const savedModel = localStorage.getItem('translation_model') || 'yandex';
     const savedVoiceThreshold = parseInt(localStorage.getItem('voice_threshold') || '30', 10);
-    const savedSilenceDuration = parseInt(localStorage.getItem('silence_duration') || '2000', 10);
+    const savedSilenceDuration = parseInt(localStorage.getItem('silence_duration') || '3000', 10);
     
     setOpenaiKey(savedOpenaiKey);
     setYandexKey(savedYandexKey);

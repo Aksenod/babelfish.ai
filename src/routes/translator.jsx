@@ -23,6 +23,8 @@ function Translator() {
   const isRecordingRef = useRef(false);
   const isProcessingRef = useRef(false);
   const isListeningRef = useRef(false);
+  const pendingFragmentsRef = useRef([]); // Буфер для фрагментов, ожидающих объединения
+  const lastFragmentTimeRef = useRef(null); // Время последнего фрагмента
 
   // Load API keys from config file, .env file, or localStorage (in that order)
   const getApiKeys = () => ({
@@ -39,8 +41,11 @@ function Translator() {
   // Load voice detection settings from localStorage
   const getVoiceSettings = () => ({
     threshold: parseInt(localStorage.getItem('voice_threshold') || '30', 10),
-    silenceDuration: parseInt(localStorage.getItem('silence_duration') || '2000', 10),
+    silenceDuration: parseInt(localStorage.getItem('silence_duration') || '3000', 10), // Увеличено до 3 секунд по умолчанию
   });
+
+  // Константа для времени объединения фрагментов (в миллисекундах)
+  const FRAGMENT_MERGE_WINDOW = 2500; // 2.5 секунды - окно для объединения близких фрагментов
 
   // Initialize audio recording and voice activity detection
   useEffect(() => {
@@ -420,11 +425,38 @@ function Translator() {
       timestamp: new Date().toISOString(),
     });
 
+    // Если запись уже остановлена, но состояние не синхронизировано - исправляем это
     if (!recorderRef.current || recorderRef.current.state !== 'recording') {
-      console.warn('[VAD:stopAndProcess] Запись не может быть остановлена', {
-        hasRecorder: !!recorderRef.current,
-        recorderState: recorderRef.current?.state,
-      });
+      // Синхронизируем состояния, даже если запись уже остановлена
+      if (isRecordingRef.current || isListeningRef.current) {
+        console.warn('[VAD:stopAndProcess] Запись уже остановлена, синхронизируем состояния', {
+          hasRecorder: !!recorderRef.current,
+          recorderState: recorderRef.current?.state,
+          wasRecording: isRecordingRef.current,
+          wasListening: isListeningRef.current,
+        });
+        
+        setIsRecording(false);
+        isRecordingRef.current = false;
+        setIsListening(false);
+        isListeningRef.current = false;
+        
+        // Очищаем таймеры
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+        
+        if (voiceActivityCheckRef.current) {
+          cancelAnimationFrame(voiceActivityCheckRef.current);
+          voiceActivityCheckRef.current = null;
+        }
+        
+        // Перезапускаем прослушивание, чтобы не пропустить речь
+        setTimeout(() => {
+          safeRestartListening();
+        }, 100);
+      }
       return;
     }
 
@@ -502,12 +534,32 @@ function Translator() {
       }
 
       // Step 1: Transcribe audio
-      console.log('[VAD:processAudio] Начало распознавания речи');
+      console.log('[VAD:processAudio] Начало распознавания речи', {
+        bufferState: {
+          fragmentsCount: pendingFragmentsRef.current.length,
+          fragments: pendingFragmentsRef.current.map(f => ({
+            text: f.text,
+            age: Date.now() - f.timestamp,
+          })),
+          lastFragmentTime: lastFragmentTimeRef.current 
+            ? Date.now() - lastFragmentTimeRef.current 
+            : null,
+        },
+        timestamp: new Date().toISOString(),
+      });
       const transcribedText = await transcribeAudio(audioBlob, openai);
       console.log('[VAD:processAudio] Распознавание завершено', {
         transcribedText,
         textLength: transcribedText.length,
+        timestamp: new Date().toISOString(),
       });
+
+      // Явный лог распознанного текста
+      console.log('[RECOGNITION] ========================================');
+      console.log('[RECOGNITION] Распознанный текст из аудио:');
+      console.log('[RECOGNITION]', transcribedText);
+      console.log('[RECOGNITION] Длина текста:', transcribedText.length, 'символов');
+      console.log('[RECOGNITION] ========================================');
 
       if (!transcribedText || transcribedText.trim().length === 0) {
         console.warn('[VAD:processAudio] Пустой результат распознавания');
@@ -532,27 +584,249 @@ function Translator() {
         return;
       }
 
-      // Add message with original text
-      const messageId = Date.now();
+      // Проверяем, нужно ли объединить с предыдущими фрагментами
+      const currentTime = Date.now();
+      const timeSinceLastFragment = lastFragmentTimeRef.current 
+        ? currentTime - lastFragmentTimeRef.current 
+        : Infinity;
+      
+      console.log('[MERGE:check] Проверка условий объединения', {
+        timeSinceLastFragment: timeSinceLastFragment === Infinity ? 'first_fragment' : `${timeSinceLastFragment}ms`,
+        mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+        bufferSize: pendingFragmentsRef.current.length,
+        bufferContents: pendingFragmentsRef.current.map((f, i) => ({
+          index: i,
+          text: f.text,
+          age: `${currentTime - f.timestamp}ms`,
+        })),
+        currentText: transcribedText,
+        canMerge: timeSinceLastFragment <= FRAGMENT_MERGE_WINDOW && pendingFragmentsRef.current.length > 0,
+        timestamp: new Date().toISOString(),
+      });
+      
+      let finalText = transcribedText.trim();
+      let shouldMerge = false;
+
+      // Если есть недавние фрагменты (в пределах окна объединения)
+      if (timeSinceLastFragment <= FRAGMENT_MERGE_WINDOW && pendingFragmentsRef.current.length > 0) {
+        shouldMerge = true;
+        // Объединяем все фрагменты из буфера с текущим текстом
+        const previousTexts = pendingFragmentsRef.current.map(f => f.text).join(' ');
+        finalText = `${previousTexts} ${finalText}`.trim();
+        
+        console.log('[MERGE:merge] Объединение фрагментов', {
+          previousFragments: pendingFragmentsRef.current.length,
+          previousTexts,
+          currentText: transcribedText,
+          finalText,
+          timeSinceLastFragment: `${timeSinceLastFragment}ms`,
+          mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        // Если прошло больше времени или буфер пуст, добавляем текущий фрагмент в буфер
+        const reason = timeSinceLastFragment === Infinity 
+          ? 'first_fragment' 
+          : timeSinceLastFragment > FRAGMENT_MERGE_WINDOW 
+            ? 'timeout' 
+            : 'empty_buffer';
+        
+        pendingFragmentsRef.current.push({
+          text: transcribedText.trim(),
+          timestamp: currentTime,
+        });
+        
+        console.log('[MERGE:buffer] Фрагмент добавлен в буфер', {
+          reason,
+          fragmentText: transcribedText,
+          bufferSize: pendingFragmentsRef.current.length,
+          timeSinceLastFragment: timeSinceLastFragment === Infinity ? 'first' : `${timeSinceLastFragment}ms`,
+          bufferContents: pendingFragmentsRef.current.map((f, i) => ({
+            index: i,
+            text: f.text,
+            age: `${currentTime - f.timestamp}ms`,
+          })),
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Обновляем время последнего фрагмента
+      lastFragmentTimeRef.current = currentTime;
+
+      // Логируем финальный текст (после объединения, если было)
+      if (shouldMerge) {
+        console.log('[RECOGNITION] Финальный текст (после объединения фрагментов):');
+        console.log('[RECOGNITION]', finalText);
+        console.log('[RECOGNITION] Длина финального текста:', finalText.length, 'символов');
+      }
+
+      // Определяем messageId и создаем/обновляем сообщение
+      let messageId;
+      
+      if (shouldMerge) {
+        console.log('[MERGE:message] Попытка обновить/создать сообщение для объединенного текста', {
+          finalText,
+          timestamp: new Date().toISOString(),
+        });
+        
+        // Пытаемся обновить последнее сообщение, если оно еще не переведено
+        let messageUpdated = false;
+        
+        setMessages((prev) => {
+          if (prev.length === 0) {
+            // Если сообщений нет, создаем новое
+            messageId = Date.now();
+            console.log('[MERGE:message] Создание первого сообщения (буфер был пуст)', {
+              messageId,
+              text: finalText,
+              timestamp: new Date().toISOString(),
+            });
+            return [...prev, {
+              id: messageId,
+              original: finalText,
+              translated: null,
+              timestamp: new Date(),
+            }];
+          }
+          
+          const lastMessage = prev[prev.length - 1];
+          const lastMessageAge = currentTime - lastMessage.timestamp.getTime();
+          
+          console.log('[MERGE:message] Проверка последнего сообщения', {
+            lastMessageId: lastMessage.id,
+            lastMessageText: lastMessage.original,
+            lastMessageHasTranslation: lastMessage.translated !== null,
+            lastMessageAge: `${lastMessageAge}ms`,
+            mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+            canUpdate: lastMessage.translated === null && lastMessageAge <= FRAGMENT_MERGE_WINDOW,
+            timestamp: new Date().toISOString(),
+          });
+          
+          // Обновляем последнее сообщение, если:
+          // 1. Оно еще не переведено (translated === null)
+          // 2. Оно было создано недавно (в пределах окна объединения)
+          if (lastMessage.translated === null && lastMessageAge <= FRAGMENT_MERGE_WINDOW) {
+            messageId = lastMessage.id;
+            messageUpdated = true;
+            
+            console.log('[MERGE:message] ✓ Обновление последнего сообщения', {
+              messageId: lastMessage.id,
+              oldText: lastMessage.original,
+              newText: finalText,
+              lastMessageAge: `${lastMessageAge}ms`,
+              timestamp: new Date().toISOString(),
+            });
+            
+            // Обновляем последнее сообщение объединенным текстом
+            return prev.map((msg, index) => 
+              index === prev.length - 1
+                ? { ...msg, original: finalText }
+                : msg
+            );
+          } else {
+            // Если последнее сообщение уже переведено или прошло много времени,
+            // создаем новое сообщение
+            messageId = Date.now();
+            
+            const reason = lastMessage.translated !== null 
+              ? 'already_translated' 
+              : lastMessageAge > FRAGMENT_MERGE_WINDOW 
+                ? 'too_old' 
+                : 'unknown';
+            
+            console.log('[MERGE:message] ✗ Нельзя обновить последнее сообщение, создаем новое', {
+              reason,
+              lastMessageId: lastMessage.id,
+              hasTranslation: lastMessage.translated !== null,
+              lastMessageAge: `${lastMessageAge}ms`,
+              mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+              newMessageId: messageId,
+              newText: finalText,
+              timestamp: new Date().toISOString(),
+            });
+            
+            return [...prev, {
+              id: messageId,
+              original: finalText,
+              translated: null,
+              timestamp: new Date(),
+            }];
+          }
+        });
+        
+        // Очищаем буфер, так как мы объединили фрагменты
+        console.log('[MERGE:buffer] Очистка буфера после объединения', {
+          clearedFragments: pendingFragmentsRef.current.length,
+          timestamp: new Date().toISOString(),
+        });
+        pendingFragmentsRef.current = [];
+      } else {
+        // Если не объединяем, создаем новое сообщение
+        // Очищаем буфер, так как прошло слишком много времени для объединения
+        const clearedFragments = pendingFragmentsRef.current.length;
+        console.log('[MERGE:buffer] Очистка буфера (слишком много времени прошло)', {
+          clearedFragments,
+          bufferContents: pendingFragmentsRef.current.map((f, i) => ({
+            index: i,
+            text: f.text,
+            age: `${currentTime - f.timestamp}ms`,
+          })),
+          timestamp: new Date().toISOString(),
+        });
+        pendingFragmentsRef.current = [];
+        
+        messageId = Date.now();
       const newMessage = {
         id: messageId,
-        original: transcribedText,
+          original: finalText,
         translated: null,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, newMessage]);
-      console.log('[VAD:processAudio] Сообщение добавлено', { messageId, original: transcribedText });
+        console.log('[MERGE:message] Новое сообщение создано (без объединения)', { 
+          messageId, 
+          original: finalText,
+          reason: 'no_merge',
+          timestamp: new Date().toISOString(),
+        });
+      }
 
-      // Step 2: Translate text
-      console.log('[VAD:processAudio] Начало перевода', { model: translationModel });
+      // Step 2: Translate text (используем объединенный текст, если было объединение)
+      // Сохраняем информацию о количестве фрагментов для лога
+      const fragmentsCount = shouldMerge 
+        ? (pendingFragmentsRef.current.length > 0 ? pendingFragmentsRef.current.length + 1 : 1)
+        : 1;
+      
+      console.log('[TRANSLATE:start] Начало перевода', { 
+        messageId,
+        model: translationModel,
+        text: finalText,
+        textLength: finalText.length,
+        isMerged: shouldMerge,
+        originalFragments: fragmentsCount,
+        timestamp: new Date().toISOString(),
+      });
       const translationApiKey = translationModel === 'google' ? google : yandex;
-      const translatedText = await translateText(transcribedText, translationApiKey, translationModel);
+      const translatedText = await translateText(finalText, translationApiKey, translationModel);
       console.log('[VAD:processAudio] Перевод завершен', {
         translatedText,
         textLength: translatedText.length,
         model: translationModel,
       });
+
+      // Явный лог перевода
+      console.log('[TRANSLATION] ========================================');
+      console.log('[TRANSLATION] Оригинальный текст (EN):');
+      console.log('[TRANSLATION]', finalText);
+      console.log('[TRANSLATION] ---');
+      console.log('[TRANSLATION] Переведенный текст (RU):');
+      console.log('[TRANSLATION]', translatedText);
+      console.log('[TRANSLATION] ---');
+      console.log('[TRANSLATION] Модель перевода:', translationModel);
+      console.log('[TRANSLATION] Длина оригинала:', finalText.length, 'символов');
+      console.log('[TRANSLATION] Длина перевода:', translatedText.length, 'символов');
+      console.log('[TRANSLATION] ========================================');
 
       // Update message with translation
       setMessages((prev) =>
@@ -562,7 +836,14 @@ function Translator() {
             : msg
         )
       );
-      console.log('[VAD:processAudio] Сообщение обновлено переводом', { messageId });
+      console.log('[TRANSLATE:complete] Сообщение обновлено переводом', { 
+        messageId,
+        original: finalText,
+        translated: translatedText,
+        originalLength: finalText.length,
+        translatedLength: translatedText.length,
+        timestamp: new Date().toISOString(),
+      });
 
       const processDuration = Date.now() - processStartTime;
       console.log('[VAD:processAudio] Обработка завершена успешно', {
