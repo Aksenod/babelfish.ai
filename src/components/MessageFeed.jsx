@@ -107,7 +107,7 @@ export default function MessageFeed({ messages, onDeleteMessage, error, isRecord
                 </div>
                 <span className="text-xs font-mono text-slate-500 opacity-80">{formatTime(message.timestamp)}</span>
               </div>
-              <p className="text-base text-slate-800 leading-relaxed font-medium flex-1 break-words overflow-wrap-anywhere">{message.original}</p>
+              <p className="text-sm md:text-base text-slate-800 leading-relaxed font-medium flex-1 break-words overflow-wrap-anywhere">{message.original}</p>
             </div>
 
             {/* RU (Output) */}
@@ -119,7 +119,7 @@ export default function MessageFeed({ messages, onDeleteMessage, error, isRecord
                     <span className="text-xs font-bold text-blue-700 tracking-wider uppercase">Русский (Вывод)</span>
                   </div>
                 </div>
-                <p className="text-base text-slate-800 leading-relaxed font-medium flex-1 drop-shadow-sm break-words overflow-wrap-anywhere">{message.translated}</p>
+                <p className="text-sm md:text-base text-slate-800 leading-relaxed font-medium flex-1 drop-shadow-sm break-words overflow-wrap-anywhere">{message.translated}</p>
               </div>
             ) : (
               /* Processing State */

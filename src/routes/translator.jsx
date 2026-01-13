@@ -19,6 +19,10 @@ const ArrowLeftIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
 );
 
+const ArrowRightIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 5 7 7-7 7"/><path d="M5 12h14"/></svg>
+);
+
 const SettingsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
 );
@@ -1803,8 +1807,8 @@ function Translator() {
               }}
             >
               {/* Left Sidebar (History) - Mobile */}
-              <aside className="w-screen flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-0 pb-0 md:pt-5">
-                <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 md:mt-[60px]">
+              <aside className="w-screen flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-20 pb-0 md:pt-5">
+                <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 md:mt-[60px] mb-4">
                   <SessionHistory 
                     currentSessionId={sessionId}
                     onEditSession={setEditingSession}
@@ -1822,7 +1826,7 @@ function Translator() {
               </section>
 
               {/* Right Sidebar (Settings) - Mobile */}
-              <aside className="w-screen flex-shrink-0 flex-col min-h-0 overflow-visible px-4 pt-5 pb-5 flex">
+              <aside className="w-screen flex-shrink-0 flex-col min-h-0 overflow-visible px-4 pt-20 pb-5 flex">
                 <SettingsSidebar />
               </aside>
             </div>
@@ -1862,8 +1866,10 @@ function Translator() {
       </div>
 
       {/* Bottom Floating Dock (Control Bar) */}
-      <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
-        <div className="pointer-events-auto bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-xl px-3 py-2.5 rounded-full flex items-center gap-1 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-2 ring-slate-700/50 border border-slate-600/30 w-auto max-w-[calc(100vw-2rem)] justify-between transform transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+      {/* Скрываем на экране сессий (mobileActiveColumn === 0) и на экране настроек (mobileActiveColumn === 2) */}
+      {(!isMobile || mobileActiveColumn === 1) && (
+        <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-xl px-3 py-2.5 rounded-full flex items-center gap-1 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-2 ring-slate-700/50 border border-slate-600/30 w-auto max-w-[calc(100vw-2rem)] justify-between transform transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
           {/* Status Pill */}
           <div className="pl-4 pr-4 flex items-center gap-2.5">
             <div className="relative">
@@ -1919,6 +1925,7 @@ function Translator() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Settings modal */}
       <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />

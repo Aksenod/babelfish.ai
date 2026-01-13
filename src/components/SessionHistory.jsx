@@ -33,12 +33,32 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
 
   useEffect(() => {
     loadSessions();
+    
     // Обновляем список при изменении фокуса окна (на случай изменений в других вкладках)
     const handleFocus = () => {
       loadSessions();
     };
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    
+    // Storage event listener для синхронизации между вкладками
+    const handleStorageChange = (e) => {
+      // Обновляем список при изменении localStorage в другой вкладке
+      if (e.key === 'babelfish_sessions' || e.key === null) {
+        loadSessions();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Периодическое обновление для текущей вкладки (каждые 5 секунд)
+    const intervalId = setInterval(() => {
+      loadSessions();
+    }, 5000);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(intervalId);
+    };
   }, []);
 
   const loadSessions = () => {
@@ -174,7 +194,7 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
               >
                 {/* Active Indicator */}
                 {isActive && (
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 left-2">
                     <ActiveIndicator />
                   </div>
                 )}
@@ -217,7 +237,7 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-2 right-2 flex items-center gap-1">
                   {session.messages?.length > 0 && (
                     <button
                       onClick={(e) => handleSummarySession(e, session)}
