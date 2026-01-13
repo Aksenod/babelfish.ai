@@ -2,7 +2,7 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/png" href="logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Babelfish.ai</title>
     <meta
@@ -25,6 +25,24 @@
     />
   </head>
   <body>
+    <!-- GitHub Pages SPA redirect: восстанавливаем путь из query параметра -->
+    <script>
+      (function() {
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect !== location.href) {
+          history.replaceState(null, null, redirect);
+        } else {
+          // Обработка параметра ?p= из 404.html
+          var params = new URLSearchParams(location.search);
+          var path = params.get('p');
+          if (path) {
+            var newUrl = location.pathname.replace(/\/$/, '') + '/' + path;
+            history.replaceState(null, null, newUrl);
+          }
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -1799,12 +1799,11 @@ function Translator() {
             <div 
               className="flex h-full transition-transform duration-300 ease-out"
               style={{
-                transform: `translateX(-${mobileActiveColumn * 100}%)`,
-                width: '300%'
+                transform: `translateX(-${mobileActiveColumn * 100}vw)`
               }}
             >
               {/* Left Sidebar (History) - Mobile */}
-              <aside className="w-1/3 flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-20 pb-5 md:pt-5">
+              <aside className="w-screen flex-shrink-0 flex flex-col min-h-0 overflow-visible px-4 pt-20 pb-5 md:pt-5">
                 <div className="ui-glass-panel-thick flex-1 min-h-0 rounded-3xl p-4 flex flex-col gap-2 md:mt-[60px]">
                   <SessionHistory 
                     currentSessionId={sessionId}
@@ -1816,14 +1815,14 @@ function Translator() {
               </aside>
 
               {/* Center Translation Area - Mobile */}
-              <section className="w-1/3 flex-shrink-0 flex flex-col gap-5 min-h-0 overflow-visible pt-20 md:pt-0">
+              <section className="w-screen flex-shrink-0 flex flex-col gap-5 min-h-0 overflow-visible pt-20 md:pt-0">
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hidden pb-24 md:pb-0">
                   <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} error={error} isRecording={isRecording} />
                 </div>
               </section>
 
               {/* Right Sidebar (Settings) - Mobile */}
-              <aside className="w-1/3 flex-shrink-0 flex-col min-h-0 overflow-visible px-4 pt-5 pb-5 flex">
+              <aside className="w-screen flex-shrink-0 flex-col min-h-0 overflow-visible px-4 pt-5 pb-5 flex">
                 <SettingsSidebar />
               </aside>
             </div>
