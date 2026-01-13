@@ -969,9 +969,9 @@ function Translator() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 p-1 sm:p-2 overflow-hidden flex flex-col">
-        <div className="max-w-7xl mx-auto h-full flex flex-col">
-          <div className="flex-1 overflow-hidden">
+      <div className="flex-1 p-1 sm:p-2 overflow-hidden flex flex-col w-full min-w-0">
+        <div className="max-w-7xl mx-auto h-full flex flex-col w-full min-w-0">
+          <div className="flex-1 overflow-hidden w-full min-w-0 flex">
             <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} />
           </div>
           

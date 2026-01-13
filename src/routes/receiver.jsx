@@ -78,8 +78,8 @@ function App({ supabase }) {
       </div>
 
       {/* Main Message Feed Area */}
-      <div className="flex-1 p-4 overflow-hidden">
-        <div className="max-w-7xl mx-auto h-full">
+      <div className="flex-1 p-4 overflow-hidden w-full min-w-0">
+        <div className="max-w-7xl mx-auto h-full w-full">
           <MessageFeed messages={messageHistory} />
         </div>
       </div>

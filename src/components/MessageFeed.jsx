@@ -30,7 +30,7 @@ export default function MessageFeed({ messages, onDeleteMessage }) {
 
   if (!messages || messages.length === 0) {
     return (
-      <div className="w-full h-full border-2 border-gray-300 rounded-xl p-3 sm:p-4 bg-white shadow-lg">
+      <div className="flex-1 w-full h-full min-w-0 border-2 border-gray-300 rounded-xl p-3 sm:p-4 bg-white shadow-lg">
         <div className="flex items-center justify-center h-full">
           <div className="text-center px-4">
             <div className="text-3xl sm:text-5xl mb-3" role="img" aria-label="Микрофон">🎤</div>
@@ -45,12 +45,12 @@ export default function MessageFeed({ messages, onDeleteMessage }) {
   return (
     <div 
       ref={feedRef}
-      className="w-full h-full border-2 border-gray-300 rounded-xl p-2 sm:p-3 bg-white shadow-lg overflow-y-auto scrollbar-thin"
+      className="flex-1 w-full h-full min-w-0 border-2 border-gray-300 rounded-xl p-2 sm:p-3 bg-white shadow-lg overflow-y-auto scrollbar-thin"
       role="log"
       aria-live="polite"
       aria-label="Лента сообщений с переводами"
     >
-      <div className="space-y-2">
+      <div className="space-y-2 w-full">
         {messages.map((message, index) => (
           <div 
             key={message.id} 
