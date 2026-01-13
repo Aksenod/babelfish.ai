@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-export default function MessageFeed({ messages }) {
+export default function MessageFeed({ messages, onDeleteMessage }) {
   const feedRef = useRef(null);
   const [copiedId, setCopiedId] = useState(null);
 
@@ -60,10 +60,33 @@ export default function MessageFeed({ messages }) {
                 : 'border-gray-200'
             }`}
           >
-            <div className="flex justify-between items-center mb-1.5">
+            <div className="flex justify-between items-center mb-1.5 relative group">
               <span className="text-xs text-gray-500 font-medium">
                 {formatTime(message.timestamp)}
               </span>
+              {onDeleteMessage && (
+                <button
+                  onClick={() => onDeleteMessage(message.id)}
+                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 rounded p-1"
+                  aria-label="Удалить сообщение"
+                  title="Удалить"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
             
             <div className="space-y-2">

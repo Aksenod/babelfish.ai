@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import MessageFeed from '../components/MessageFeed';
 import Settings from '../components/Settings';
+import Toast from '../components/Toast';
 import { transcribeAudio, translateText } from '../utils/api';
 import { apiKeys as configApiKeys } from '../config/apiKeys';
 
@@ -11,6 +12,7 @@ function Translator() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [error, setError] = useState(null);
   const [isListening, setIsListening] = useState(false); // Состояние прослушивания (ожидание речи)
+  const [deleteToast, setDeleteToast] = useState(null); // Состояние для тоста удаления
 
   const recorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
@@ -44,8 +46,10 @@ function Translator() {
     silenceDuration: parseInt(localStorage.getItem('silence_duration') || '3000', 10), // Увеличено до 3 секунд по умолчанию
   });
 
-  // Константа для времени объединения фрагментов (в миллисекундах)
-  const FRAGMENT_MERGE_WINDOW = 2500; // 2.5 секунды - окно для объединения близких фрагментов
+  // Получение задержки объединения фрагментов из localStorage
+  const getMergeDelay = () => {
+    return parseInt(localStorage.getItem('merge_delay') || '2500', 10);
+  };
 
   // Initialize audio recording and voice activity detection
   useEffect(() => {
@@ -590,9 +594,11 @@ function Translator() {
         ? currentTime - lastFragmentTimeRef.current 
         : Infinity;
       
+      const mergeWindow = getMergeDelay();
+      
       console.log('[MERGE:check] Проверка условий объединения', {
         timeSinceLastFragment: timeSinceLastFragment === Infinity ? 'first_fragment' : `${timeSinceLastFragment}ms`,
-        mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+        mergeWindow: `${mergeWindow}ms`,
         bufferSize: pendingFragmentsRef.current.length,
         bufferContents: pendingFragmentsRef.current.map((f, i) => ({
           index: i,
@@ -600,7 +606,7 @@ function Translator() {
           age: `${currentTime - f.timestamp}ms`,
         })),
         currentText: transcribedText,
-        canMerge: timeSinceLastFragment <= FRAGMENT_MERGE_WINDOW && pendingFragmentsRef.current.length > 0,
+        canMerge: timeSinceLastFragment <= mergeWindow && pendingFragmentsRef.current.length > 0,
         timestamp: new Date().toISOString(),
       });
       
@@ -608,7 +614,7 @@ function Translator() {
       let shouldMerge = false;
 
       // Если есть недавние фрагменты (в пределах окна объединения)
-      if (timeSinceLastFragment <= FRAGMENT_MERGE_WINDOW && pendingFragmentsRef.current.length > 0) {
+      if (timeSinceLastFragment <= mergeWindow && pendingFragmentsRef.current.length > 0) {
         shouldMerge = true;
         // Объединяем все фрагменты из буфера с текущим текстом
         const previousTexts = pendingFragmentsRef.current.map(f => f.text).join(' ');
@@ -620,14 +626,14 @@ function Translator() {
           currentText: transcribedText,
           finalText,
           timeSinceLastFragment: `${timeSinceLastFragment}ms`,
-          mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+          mergeWindow: `${mergeWindow}ms`,
           timestamp: new Date().toISOString(),
         });
       } else {
         // Если прошло больше времени или буфер пуст, добавляем текущий фрагмент в буфер
         const reason = timeSinceLastFragment === Infinity 
           ? 'first_fragment' 
-          : timeSinceLastFragment > FRAGMENT_MERGE_WINDOW 
+          : timeSinceLastFragment > mergeWindow 
             ? 'timeout' 
             : 'empty_buffer';
         
@@ -691,21 +697,22 @@ function Translator() {
           
           const lastMessage = prev[prev.length - 1];
           const lastMessageAge = currentTime - lastMessage.timestamp.getTime();
+          const mergeWindow = getMergeDelay();
           
           console.log('[MERGE:message] Проверка последнего сообщения', {
             lastMessageId: lastMessage.id,
             lastMessageText: lastMessage.original,
             lastMessageHasTranslation: lastMessage.translated !== null,
             lastMessageAge: `${lastMessageAge}ms`,
-            mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
-            canUpdate: lastMessage.translated === null && lastMessageAge <= FRAGMENT_MERGE_WINDOW,
+            mergeWindow: `${mergeWindow}ms`,
+            canUpdate: lastMessage.translated === null && lastMessageAge <= mergeWindow,
             timestamp: new Date().toISOString(),
           });
           
           // Обновляем последнее сообщение, если:
           // 1. Оно еще не переведено (translated === null)
           // 2. Оно было создано недавно (в пределах окна объединения)
-          if (lastMessage.translated === null && lastMessageAge <= FRAGMENT_MERGE_WINDOW) {
+          if (lastMessage.translated === null && lastMessageAge <= mergeWindow) {
             messageId = lastMessage.id;
             messageUpdated = true;
             
@@ -730,7 +737,7 @@ function Translator() {
             
             const reason = lastMessage.translated !== null 
               ? 'already_translated' 
-              : lastMessageAge > FRAGMENT_MERGE_WINDOW 
+              : lastMessageAge > mergeWindow 
                 ? 'too_old' 
                 : 'unknown';
             
@@ -739,7 +746,7 @@ function Translator() {
               lastMessageId: lastMessage.id,
               hasTranslation: lastMessage.translated !== null,
               lastMessageAge: `${lastMessageAge}ms`,
-              mergeWindow: `${FRAGMENT_MERGE_WINDOW}ms`,
+              mergeWindow: `${mergeWindow}ms`,
               newMessageId: messageId,
               newText: finalText,
               timestamp: new Date().toISOString(),
@@ -889,6 +896,26 @@ function Translator() {
     setError(null);
   };
 
+  const handleDeleteMessage = (messageId) => {
+    // Показываем тост с информацией о сообщении
+    const message = messages.find((msg) => msg.id === messageId);
+    setDeleteToast({
+      messageId,
+      text: 'Сообщение будет удалено',
+    });
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteToast(null);
+  };
+
+  const handleCompleteDelete = () => {
+    if (deleteToast) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== deleteToast.messageId));
+      setDeleteToast(null);
+    }
+  };
+
   // Check if API keys are set on mount
   useEffect(() => {
     const { openai, yandex, google } = getApiKeys();
@@ -940,7 +967,16 @@ function Translator() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
 
+      {/* Main content */}
+      <div className="flex-1 p-1 sm:p-2 overflow-hidden flex flex-col">
+        <div className="max-w-7xl mx-auto h-full flex flex-col">
+          <div className="flex-1 overflow-hidden">
+            <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} />
+          </div>
+          
           {/* Status bar */}
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-3 text-xs sm:text-sm" role="status" aria-live="polite">
             <div className="flex items-center space-x-2">
@@ -990,15 +1026,18 @@ function Translator() {
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 p-1 sm:p-2 overflow-hidden">
-        <div className="max-w-7xl mx-auto h-full">
-          <MessageFeed messages={messages} />
-        </div>
-      </div>
-
       {/* Settings modal */}
       <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+      {/* Delete confirmation toast */}
+      {deleteToast && (
+        <Toast
+          message={deleteToast}
+          onCancel={handleCancelDelete}
+          onComplete={handleCompleteDelete}
+          duration={4000}
+        />
+      )}
     </div>
   );
 }
