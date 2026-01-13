@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function Toast({ message, onCancel, onComplete, duration = 4000 }) {
+export default function Toast({ message, onCancel, onComplete, duration = 3000, topOffset = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
   const [timeLeft, setTimeLeft] = useState(duration / 1000);
 
@@ -44,11 +44,12 @@ export default function Toast({ message, onCancel, onComplete, duration = 4000 }
 
   return (
     <div
-      className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ${
+      className={`fixed left-1/2 transform -translate-x-1/2 z-50 transition-all duration-300 ${
         isVisible
           ? 'opacity-100 translate-y-0'
           : 'opacity-0 -translate-y-2 pointer-events-none'
       }`}
+      style={{ top: `${16 + topOffset}px` }}
       role="alert"
       aria-live="assertive"
     >

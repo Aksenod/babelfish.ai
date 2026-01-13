@@ -248,3 +248,137 @@ export async function translateText(text, apiKey, model = 'yandex') {
   }
 }
 
+/**
+ * Generate summary for session using GPT-4o API
+ * @param {Array} messages - Array of message objects with 'original' field
+ * @param {string} context - Context string from settings (optional)
+ * @param {string} apiKey - OpenAI API key
+ * @param {string} customPrompt - Custom prompt template (optional)
+ * @returns {Promise<string>} Generated summary
+ */
+export async function generateSummary(messages, context, apiKey, customPrompt = null) {
+  if (!apiKey) {
+    throw new Error('OpenAI API key is required');
+  }
+
+  if (!messages || messages.length === 0) {
+    throw new Error('Messages are required for summary generation');
+  }
+
+  const startTime = Date.now();
+  console.log('[API:summary] Начало генерации саммари', {
+    messagesCount: messages.length,
+    hasContext: !!context,
+    hasCustomPrompt: !!customPrompt,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Формируем список сообщений для промпта (включая оригинал и перевод)
+  const messagesText = messages
+    .map((msg, index) => {
+      const original = msg.original || '';
+      const translated = msg.translated || null;
+      
+      if (translated) {
+        // Если есть перевод, показываем оба текста
+        return `${index + 1}. [EN] ${original}\n    [RU] ${translated}`;
+      } else {
+        // Если перевода нет, показываем только оригинал
+        return `${index + 1}. [EN] ${original}`;
+      }
+    })
+    .join('\n\n');
+
+  // Формируем промпт
+  let prompt;
+  
+  if (customPrompt && customPrompt.trim().length > 0) {
+    // Используем кастомный промпт, заменяя плейсхолдер {messages} на список сообщений
+    prompt = customPrompt.trim();
+    prompt = prompt.replace(/{messages}/g, messagesText);
+    
+    // Заменяем плейсхолдер {context}
+    if (context && context.trim().length > 0) {
+      prompt = prompt.replace(/{context}/g, context.trim());
+    } else {
+      // Если контекст пустой, удаляем строки, содержащие только {context} или пустые строки после удаления
+      prompt = prompt.replace(/{context}/g, '');
+      // Удаляем пустые строки (более 2 переносов подряд)
+      prompt = prompt.replace(/\n{3,}/g, '\n\n');
+    }
+  } else {
+    // Дефолтный промпт
+    prompt = `Ты - помощник для создания подробного саммари сессий перевода.\n\n`;
+
+    if (context && context.trim().length > 0) {
+      prompt += `Контекст: ${context.trim()}\n\n`;
+    }
+
+    prompt += `Ниже представлены сообщения из сессии перевода (оригинальные тексты на английском и их переводы на русский):\n\n${messagesText}\n\n`;
+    prompt += `Создай подробное саммари этой сессии на русском языке. Саммари должно включать:\n`;
+    prompt += `- Основные темы и вопросы, обсуждавшиеся в сессии\n`;
+    prompt += `- Ключевые решения или выводы\n`;
+    prompt += `- Важные детали, упомянутые в разговоре\n`;
+    prompt += `- Любую другую релевантную информацию\n\n`;
+    
+    if (context && context.trim().length > 0) {
+      prompt += `Учитывай указанный контекст при создании саммари.`;
+    }
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'Ты - помощник для создания подробных и информативных саммари сессий перевода. Отвечай только на русском языке.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+      const errorMessage = error.error?.message || `API error: ${response.status}`;
+      console.error('[API:summary] Ошибка генерации саммари', {
+        status: response.status,
+        error: errorMessage,
+        duration: Date.now() - startTime,
+      });
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    const summary = data.choices[0]?.message?.content || '';
+    const duration = Date.now() - startTime;
+
+    console.log('[API:summary] Генерация саммари завершена', {
+      summaryLength: summary.length,
+      duration,
+      durationSeconds: (duration / 1000).toFixed(2),
+      timestamp: new Date().toISOString(),
+    });
+
+    return summary.trim();
+  } catch (err) {
+    console.error('[API:summary] Исключение при генерации саммари', {
+      error: err.message,
+      duration: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    });
+    throw err;
+  }
+}

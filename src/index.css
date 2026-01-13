@@ -19,6 +19,18 @@
     @apply bg-gray-500;
   }
 
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply rounded-full;
+  }
+
+  .scrollbar-thin.scrollbar-track-transparent::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .scrollbar-thin.scrollbar-thumb-slate-300::-webkit-scrollbar-thumb {
+    @apply bg-slate-300;
+  }
+
   .animation-delay-200 {
     animation-delay: 200ms;
   }
@@ -30,35 +42,115 @@
     overflow-wrap: anywhere;
   }
 
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hidden {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 
-  @keyframes slide-in-from-bottom {
-    from {
-      transform: translateY(10px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
   }
 
-  .animate-in {
-    animation: fade-in 0.3s ease-out;
+  /* Allow horizontal overflow while keeping vertical scroll */
+  .overflow-y-scroll-x-visible {
+    overflow-y: auto;
+    overflow-x: visible;
   }
 
-  .fade-in {
-    animation: fade-in 0.3s ease-out;
+  /* Workaround: use clip for x-axis to allow content to extend */
+  .overflow-y-scroll-x-clip {
+    overflow-y: auto;
+    overflow-x: clip;
+  }
+}
+
+/* Custom Liquid Glass Styles */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+html {
+}
+
+@layer components {
+  /* Dynamic Mesh Gradient Background */
+  .ui-mesh-bg {
+    background-color: #f0f4f8;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(210, 40%, 95%, 1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(200, 35%, 92%, 1) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(220, 30%, 88%, 1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(210, 35%, 90%, 1) 0px, transparent 50%),
+      radial-gradient(at 50% 50%, hsla(215, 25%, 94%, 1) 0px, transparent 50%);
+    background-attachment: fixed;
+    background-size: cover;
   }
 
-  .slide-in-from-bottom-2 {
-    animation: slide-in-from-bottom 0.3s ease-out;
+  /* The signature "Thick Glass" effect */
+  .ui-glass-panel-thick {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.55) 100%);
+    backdrop-filter: blur(40px) saturate(120%);
+    -webkit-backdrop-filter: blur(40px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+      0 20px 40px -10px rgba(0, 80, 150, 0.1),
+      0 0 0 1px rgba(255, 255, 255, 0.3);
   }
+
+  .ui-glass-panel-thin {
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 0.5px 0 0 rgba(255, 255, 255, 0.8);
+  }
+
+  /* Active/Selected Glass Element (Blue Tint) */
+  .ui-glass-active {
+    background: linear-gradient(180deg, rgba(219, 234, 254, 0.7) 0%, rgba(191, 219, 254, 0.5) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
+      0 4px 15px -3px rgba(37, 99, 235, 0.15);
+  }
+
+  /* Shimmer Animation */
+  @keyframes liquid-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .ui-text-shimmer {
+    background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 50%, #1e3a8a 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: liquid-shimmer 3s linear infinite;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 0px;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.6);
 }

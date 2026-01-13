@@ -548,9 +548,9 @@ function App({ supabase }) {
   }, [status, recording, isProcessing, chunks, language]);
 
   return IS_WEBGPU_AVAILABLE ? (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-[100dvh] bg-gray-100 overflow-hidden">
       {/* Collapsible Header with controls */}
-      <div className={`${isHeaderCollapsed ? 'h-16' : 'h-auto'} bg-white shadow-sm border-b border-gray-200 transition-all duration-300`}>
+      <div className={`${isHeaderCollapsed ? 'h-16' : 'h-auto'} bg-white shadow-sm border-b border-gray-200 transition-all duration-300 flex-none z-10`}>
         <div className="max-w-7xl mx-auto p-4">
           {/* Header toggle button */}
           <div className="flex justify-between items-center mb-2">
@@ -695,16 +695,16 @@ function App({ supabase }) {
 
       {/* Main Message Feed Area */}
       <div className="flex-1 p-4 overflow-hidden w-full min-w-0">
-        <div className="max-w-7xl mx-auto h-full w-full">
+        <div className="max-w-7xl mx-auto h-full w-full flex flex-col">
           {status === 'ready' && (
-            <MessageFeed messages={messageHistory} />
+            <MessageFeed messages={messageHistory} isRecording={recording} />
           )}
         </div>
       </div>
 
       {/* Bottom controls bar */}
       {status === 'ready' && (
-        <div className="bg-white border-t border-gray-200 p-4">
+        <div className="bg-white border-t border-gray-200 p-4 flex-none z-10">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
