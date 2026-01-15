@@ -128,7 +128,7 @@ export default function CreateSessionDrawer({ isOpen, onClose, onSessionCreated 
     >
       <div 
         ref={drawerRef}
-        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] max-w-[50vw] bg-white shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out rounded-r-3xl z-[10000] ${
+        className={`fixed left-0 top-0 h-full w-full sm:w-1/2 md:w-1/2 lg:w-[480px] bg-white shadow-2xl overflow-y-auto custom-scrollbar transform transition-transform duration-300 ease-out sm:rounded-r-3xl z-[10000] ${
           isVisible ? 'translate-x-0' : '-translate-x-full'
         }`}
         onClick={(e) => e.stopPropagation()}

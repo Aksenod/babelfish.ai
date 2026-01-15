@@ -5,6 +5,11 @@ const TRANSLATION_MODELS = [
   { value: 'google', label: 'Google' },
 ];
 
+const TRANSCRIPTION_SOURCES = [
+  { value: 'local_worker', label: 'Локально (браузер)' },
+  { value: 'openai_whisper', label: 'OpenAI Whisper' },
+];
+
 // Icons
 const SlidersIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="21" y2="21"/><line x1="4" x2="20" y1="3" y2="3"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
@@ -24,11 +29,13 @@ const InfoIcon = () => (
 
 export default function SettingsSidebar() {
   const [translationModel, setTranslationModel] = useState('yandex');
+  const [transcriptionSource, setTranscriptionSource] = useState('local_worker');
+  const [sentencesOnScreen, setSentencesOnScreen] = useState(2);
+  const [showOriginal, setShowOriginal] = useState(true);
   
   // Voice Recognition
   const [voiceThreshold, setVoiceThreshold] = useState(30);
   const [silenceDuration, setSilenceDuration] = useState(3000);
-  const [mergeDelay, setMergeDelay] = useState(2500);
   
   // Session Context
   const [sessionContext, setSessionContext] = useState('');
@@ -40,14 +47,24 @@ export default function SettingsSidebar() {
   const [stabilityCheckSamples, setStabilityCheckSamples] = useState(3);
   const [voiceEnergyRatio, setVoiceEnergyRatio] = useState(0.3);
   const [stabilityCoefficient, setStabilityCoefficient] = useState(0.8);
+  const [filterMeaninglessText, setFilterMeaninglessText] = useState(true);
+  const [minTextLength, setMinTextLength] = useState(3);
+  const [filterArtifacts, setFilterArtifacts] = useState(true);
+  const [filterInterjections, setFilterInterjections] = useState(true);
+  const [filterShortPhrases, setFilterShortPhrases] = useState(true);
+  const [minSingleWordLength, setMinSingleWordLength] = useState(2);
 
 
   useEffect(() => {
     setTranslationModel(localStorage.getItem('translation_model') || 'yandex');
+    setTranscriptionSource(localStorage.getItem('transcription_source') || 'local_worker');
+    const savedSentences = parseInt(localStorage.getItem('sentences_on_screen') || '2', 10);
+    setSentencesOnScreen([1, 2, 3].includes(savedSentences) ? savedSentences : 2);
+    const savedShowOriginal = localStorage.getItem('show_original');
+    setShowOriginal(savedShowOriginal === null ? true : savedShowOriginal === 'true');
     
     setVoiceThreshold(parseInt(localStorage.getItem('voice_threshold') || '30', 10));
     setSilenceDuration(parseInt(localStorage.getItem('silence_duration') || '3000', 10));
-    setMergeDelay(parseInt(localStorage.getItem('merge_delay') || '2500', 10));
     
     setSessionContext(localStorage.getItem('session_context') || '');
     
@@ -57,6 +74,16 @@ export default function SettingsSidebar() {
     setStabilityCheckSamples(parseInt(localStorage.getItem('stability_check_samples') || '3', 10));
     setVoiceEnergyRatio(parseFloat(localStorage.getItem('voice_energy_ratio') || '0.3'));
     setStabilityCoefficient(parseFloat(localStorage.getItem('stability_coefficient') || '0.8'));
+    const savedFilterMeaninglessText = localStorage.getItem('filter_meaningless_text');
+    setFilterMeaninglessText(savedFilterMeaninglessText === null ? true : savedFilterMeaninglessText === 'true');
+    setMinTextLength(parseInt(localStorage.getItem('filter_min_text_length') || '3', 10));
+    const savedFilterArtifacts = localStorage.getItem('filter_artifacts');
+    setFilterArtifacts(savedFilterArtifacts === null ? true : savedFilterArtifacts === 'true');
+    const savedFilterInterjections = localStorage.getItem('filter_interjections');
+    setFilterInterjections(savedFilterInterjections === null ? true : savedFilterInterjections === 'true');
+    const savedFilterShortPhrases = localStorage.getItem('filter_short_phrases');
+    setFilterShortPhrases(savedFilterShortPhrases === null ? true : savedFilterShortPhrases === 'true');
+    setMinSingleWordLength(parseInt(localStorage.getItem('filter_min_single_word_length') || '2', 10));
   }, []);
 
   const handleSave = (key, value) => {
@@ -188,6 +215,86 @@ export default function SettingsSidebar() {
           </div>
         </div>
 
+        {/* Transcription Source */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 block">Распознавание</label>
+          <div className="relative">
+            <select
+              value={transcriptionSource}
+              onChange={(e) => {
+                setTranscriptionSource(e.target.value);
+                handleSave('transcription_source', e.target.value);
+              }}
+              className="w-full px-3.5 py-2.5 pr-10 rounded-xl ui-glass-panel-thin border border-white/40 text-sm font-medium text-slate-900 bg-white/20 hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 focus:bg-white/35 transition-all duration-200 appearance-none cursor-pointer"
+            >
+              {TRANSCRIPTION_SOURCES.map((source) => (
+                <option key={source.value} value={source.value}>
+                  {source.label}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-slate-500"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Display Settings */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 block">Отображение</label>
+          <div className="flex items-center gap-2">
+            {[1, 2, 3].map((count) => (
+              <button
+                key={count}
+                type="button"
+                onClick={() => {
+                  setSentencesOnScreen(count);
+                  handleSave('sentences_on_screen', count.toString());
+                }}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border ${
+                  sentencesOnScreen === count
+                    ? 'bg-blue-500/20 text-blue-700 border-blue-500/40'
+                    : 'bg-white/10 text-slate-600 border-white/30 hover:bg-white/20'
+                }`}
+                aria-pressed={sentencesOnScreen === count}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-between items-center pt-1">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Показывать оригинал</label>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showOriginal}
+                onChange={(e) => {
+                  const newValue = e.target.checked;
+                  setShowOriginal(newValue);
+                  handleSave('show_original', newValue.toString());
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-300/50 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500/60"></div>
+            </label>
+          </div>
+        </div>
+
         <div className="border-t border-white/20 my-3"></div>
 
         {/* Voice Settings */}
@@ -200,7 +307,6 @@ export default function SettingsSidebar() {
           <div className="space-y-3">
             {renderSlider('Порог', voiceThreshold, setVoiceThreshold, 'voice_threshold', 1, 100, 1, '', 'Минимальный уровень громкости для начала записи. Чем выше значение, тем тише звуки будут игнорироваться.')}
             {renderSlider('Тишина (мс)', silenceDuration, setSilenceDuration, 'silence_duration', 500, 10000, 100, '', 'Длительность тишины в миллисекундах, после которой запись будет завершена. Большее значение означает более длительное ожидание перед остановкой записи.')}
-            {renderSlider('Задержка объединения (мс)', mergeDelay, setMergeDelay, 'merge_delay', 500, 10000, 100, '', 'Задержка перед объединением сегментов речи. Помогает избежать разрыва фраз при паузах в речи.')}
           </div>
         </div>
 
@@ -225,6 +331,160 @@ export default function SettingsSidebar() {
             {renderSlider('Образцы стабильности', stabilityCheckSamples, setStabilityCheckSamples, 'stability_check_samples', 2, 10, 1, '', 'Количество проверок стабильности сигнала. Больше образцов = более строгая проверка, но может пропустить быструю речь.')}
             {renderSlider('Коэфф. энергии', voiceEnergyRatio, setVoiceEnergyRatio, 'voice_energy_ratio', 0.1, 1.0, 0.05, '', 'Коэффициент энергии голоса относительно общего уровня звука. Помогает отличить голос от фонового шума.')}
             {renderSlider('Коэфф. стабильности', stabilityCoefficient, setStabilityCoefficient, 'stability_coefficient', 0.3, 2.0, 0.1, '', 'Коэффициент стабильности сигнала. Выше значение = более строгая проверка стабильности, помогает отфильтровать случайные звуки.')}
+            
+            {/* Filter Meaningless Text Toggle */}
+            <div className="space-y-2 pt-2 border-t border-white/20">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Фильтр бессмысленного текста</label>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={filterMeaninglessText}
+                    onChange={(e) => {
+                      const newValue = e.target.checked;
+                      setFilterMeaninglessText(newValue);
+                      handleSave('filter_meaningless_text', newValue.toString());
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-300/50 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500/60"></div>
+                </label>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Фильтровать текст, который может быть артефактом распознавания (междометия, повторения и т.д.)
+              </p>
+            </div>
+
+            {filterMeaninglessText && (
+              <div className="space-y-3 pt-2 border-t border-white/20">
+                {/* Простой контрол без дополнительных хуков, чтобы не ломать порядок хуков */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                        Мин. длина текста (символы)
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      step={1}
+                      value={minTextLength}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 3;
+                        setMinTextLength(val);
+                        handleSave('filter_min_text_length', val.toString());
+                      }}
+                      className="w-16 px-2 py-1 rounded-md bg-slate-900/30 border border-white/10 text-xs text-slate-100 text-right focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed pl-0">
+                    Минимальная длина текста без знаков препинания. Более короткие тексты будут отфильтрованы.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                        Мин. длина слова (символы)
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={minSingleWordLength}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 2;
+                        setMinSingleWordLength(val);
+                        handleSave('filter_min_single_word_length', val.toString());
+                      }}
+                      className="w-16 px-2 py-1 rounded-md bg-slate-900/30 border border-white/10 text-xs text-slate-100 text-right focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed pl-0">
+                    Минимальная длина одиночного слова. Более короткие одиночные слова будут отфильтрованы.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Артефакты</label>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterArtifacts}
+                        onChange={(e) => {
+                          const newValue = e.target.checked;
+                          setFilterArtifacts(newValue);
+                          handleSave('filter_artifacts', newValue.toString());
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-300/50 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500/60"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed pl-0">
+                    Фильтровать повторяющиеся слова (bye bye bye, no no no)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Междометия</label>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterInterjections}
+                        onChange={(e) => {
+                          const newValue = e.target.checked;
+                          setFilterInterjections(newValue);
+                          handleSave('filter_interjections', newValue.toString());
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-300/50 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500/60"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed pl-0">
+                    Фильтровать междометия (uh, um, эм, хм)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Короткие фразы</label>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterShortPhrases}
+                        onChange={(e) => {
+                          const newValue = e.target.checked;
+                          setFilterShortPhrases(newValue);
+                          handleSave('filter_short_phrases', newValue.toString());
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-300/50 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500/60"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed pl-0">
+                    Фильтровать короткие фразы (hi, bye, привет, пока)
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

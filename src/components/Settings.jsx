@@ -25,7 +25,18 @@ export default function Settings({ isOpen, onClose }) {
   const [stabilityCheckSamples, setStabilityCheckSamples] = useState(3);
   const [voiceEnergyRatio, setVoiceEnergyRatio] = useState(0.3);
   const [stabilityCoefficient, setStabilityCoefficient] = useState(0.8);
+  const [filterMeaninglessText, setFilterMeaninglessText] = useState(true);
+  const [minTextLength, setMinTextLength] = useState(3);
+  const [filterArtifacts, setFilterArtifacts] = useState(true);
+  const [filterInterjections, setFilterInterjections] = useState(true);
+  const [filterShortPhrases, setFilterShortPhrases] = useState(true);
+  const [minSingleWordLength, setMinSingleWordLength] = useState(2);
   const [sessionContext, setSessionContext] = useState('');
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(true);
+  const [autoTranslateMinChars, setAutoTranslateMinChars] = useState(300);
+  const [chunkMaxChars, setChunkMaxChars] = useState(300);
+  const [chunkMinChars, setChunkMinChars] = useState(50);
+  const [maxRecordingDuration, setMaxRecordingDuration] = useState(60000);
   const [isApiKeysExpanded, setIsApiKeysExpanded] = useState(false);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -56,7 +67,18 @@ export default function Settings({ isOpen, onClose }) {
     const savedStabilityCheckSamples = parseInt(localStorage.getItem('stability_check_samples') || '3', 10);
     const savedVoiceEnergyRatio = parseFloat(localStorage.getItem('voice_energy_ratio') || '0.3', 10);
     const savedStabilityCoefficient = parseFloat(localStorage.getItem('stability_coefficient') || '0.8', 10);
+    const savedFilterMeaninglessText = localStorage.getItem('filter_meaningless_text');
+    const savedMinTextLength = parseInt(localStorage.getItem('filter_min_text_length') || '3', 10);
+    const savedFilterArtifacts = localStorage.getItem('filter_artifacts');
+    const savedFilterInterjections = localStorage.getItem('filter_interjections');
+    const savedFilterShortPhrases = localStorage.getItem('filter_short_phrases');
+    const savedMinSingleWordLength = parseInt(localStorage.getItem('filter_min_single_word_length') || '2', 10);
     const savedSessionContext = localStorage.getItem('session_context') || '';
+    const savedAutoTranslateEnabled = localStorage.getItem('auto_translate_enabled');
+    const savedAutoTranslateMinChars = parseInt(localStorage.getItem('auto_translate_min_chars') || '300', 10);
+    const savedChunkMaxChars = parseInt(localStorage.getItem('chunk_max_chars') || '300', 10);
+    const savedChunkMinChars = parseInt(localStorage.getItem('chunk_min_chars') || '50', 10);
+    const savedMaxRecordingDuration = parseInt(localStorage.getItem('max_recording_duration') || '60000', 10);
     
     setOpenaiKey(savedOpenaiKey);
     setYandexKey(savedYandexKey);
@@ -71,7 +93,18 @@ export default function Settings({ isOpen, onClose }) {
     setStabilityCheckSamples(savedStabilityCheckSamples);
     setVoiceEnergyRatio(savedVoiceEnergyRatio);
     setStabilityCoefficient(savedStabilityCoefficient);
+    setFilterMeaninglessText(savedFilterMeaninglessText === null ? true : savedFilterMeaninglessText === 'true');
+    setMinTextLength(savedMinTextLength);
+    setFilterArtifacts(savedFilterArtifacts === null ? true : savedFilterArtifacts === 'true');
+    setFilterInterjections(savedFilterInterjections === null ? true : savedFilterInterjections === 'true');
+    setFilterShortPhrases(savedFilterShortPhrases === null ? true : savedFilterShortPhrases === 'true');
+    setMinSingleWordLength(savedMinSingleWordLength);
     setSessionContext(savedSessionContext);
+    setAutoTranslateEnabled(savedAutoTranslateEnabled === null ? true : savedAutoTranslateEnabled === 'true');
+    setAutoTranslateMinChars(savedAutoTranslateMinChars);
+    setChunkMaxChars(savedChunkMaxChars);
+    setChunkMinChars(savedChunkMinChars);
+    setMaxRecordingDuration(savedMaxRecordingDuration);
   }, []);
 
   // Handle ESC key and focus trap
@@ -133,7 +166,18 @@ export default function Settings({ isOpen, onClose }) {
     localStorage.setItem('stability_check_samples', stabilityCheckSamples.toString());
     localStorage.setItem('voice_energy_ratio', voiceEnergyRatio.toString());
     localStorage.setItem('stability_coefficient', stabilityCoefficient.toString());
+    localStorage.setItem('filter_meaningless_text', filterMeaninglessText.toString());
+    localStorage.setItem('filter_min_text_length', minTextLength.toString());
+    localStorage.setItem('filter_artifacts', filterArtifacts.toString());
+    localStorage.setItem('filter_interjections', filterInterjections.toString());
+    localStorage.setItem('filter_short_phrases', filterShortPhrases.toString());
+    localStorage.setItem('filter_min_single_word_length', minSingleWordLength.toString());
     localStorage.setItem('session_context', sessionContext);
+    localStorage.setItem('auto_translate_enabled', autoTranslateEnabled.toString());
+    localStorage.setItem('auto_translate_min_chars', autoTranslateMinChars.toString());
+    localStorage.setItem('chunk_max_chars', chunkMaxChars.toString());
+    localStorage.setItem('chunk_min_chars', chunkMinChars.toString());
+    localStorage.setItem('max_recording_duration', maxRecordingDuration.toString());
     onClose();
   };
 
@@ -323,6 +367,99 @@ export default function Settings({ isOpen, onClose }) {
           </div>
 
           <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Автоматический перевод</h3>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <label htmlFor="auto-translate-enabled" className="block text-sm font-medium text-gray-700 mb-1">
+                    Включить автоматический перевод
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    Автоматически отправлять накопленный текст на перевод при достижении заданного количества символов
+                  </p>
+                </div>
+                <div className="ml-4">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      id="auto-translate-enabled"
+                      type="checkbox"
+                      checked={autoTranslateEnabled}
+                      onChange={(e) => setAutoTranslateEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+
+              {autoTranslateEnabled && (
+                <>
+                  <div>
+                    <label htmlFor="auto-translate-min-chars" className="block text-sm font-medium text-gray-700 mb-2">
+                      Минимальное количество символов для авто-перевода
+                    </label>
+                    <input
+                      id="auto-translate-min-chars"
+                      type="number"
+                      min="50"
+                      max="2000"
+                      step="50"
+                      value={autoTranslateMinChars}
+                      onChange={(e) => setAutoTranslateMinChars(parseInt(e.target.value, 10) || 300)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      aria-describedby="auto-translate-min-chars-help"
+                    />
+                    <p id="auto-translate-min-chars-help" className="text-sm text-gray-500 mt-1">
+                      Авто-перевод сработает, когда накопленный текст достигнет этого количества символов и будет содержать законченные предложения (50-2000 символов, по умолчанию: 300)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="chunk-max-chars" className="block text-sm font-medium text-gray-700 mb-2">
+                      Максимальный размер чанка для разбиения (символов)
+                    </label>
+                    <input
+                      id="chunk-max-chars"
+                      type="number"
+                      min="100"
+                      max="1000"
+                      step="50"
+                      value={chunkMaxChars}
+                      onChange={(e) => setChunkMaxChars(parseInt(e.target.value, 10) || 300)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      aria-describedby="chunk-max-chars-help"
+                    />
+                    <p id="chunk-max-chars-help" className="text-sm text-gray-500 mt-1">
+                      Длинные тексты будут разбиты на чанки этого размера по границам предложений (100-1000 символов, по умолчанию: 300). Это помогает читать переводы в реальном времени.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="chunk-min-chars" className="block text-sm font-medium text-gray-700 mb-2">
+                      Минимальный размер чанка (символов)
+                    </label>
+                    <input
+                      id="chunk-min-chars"
+                      type="number"
+                      min="20"
+                      max="200"
+                      step="10"
+                      value={chunkMinChars}
+                      onChange={(e) => setChunkMinChars(parseInt(e.target.value, 10) || 50)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      aria-describedby="chunk-min-chars-help"
+                    />
+                    <p id="chunk-min-chars-help" className="text-sm text-gray-500 mt-1">
+                      Чанки меньше этого размера будут объединены со следующим, если это возможно (20-200 символов, по умолчанию: 50)
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4 mt-4">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Контекст сессий</h3>
             <div>
               <label htmlFor="session-context" className="block text-sm font-medium text-gray-700 mb-2">
@@ -460,6 +597,26 @@ export default function Settings({ isOpen, onClose }) {
                   </div>
 
                   <div>
+                    <label htmlFor="max-recording-duration" className="block text-sm font-medium text-gray-700 mb-2">
+                      Максимальная длительность одной записи (мс)
+                    </label>
+                    <input
+                      id="max-recording-duration"
+                      type="number"
+                      min="5000"
+                      max="120000"
+                      step="1000"
+                      value={maxRecordingDuration}
+                      onChange={(e) => setMaxRecordingDuration(parseInt(e.target.value, 10) || 60000)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                      aria-describedby="max-recording-duration-help"
+                    />
+                    <p id="max-recording-duration-help" className="text-sm text-gray-500 mt-1">
+                      Запись будет автоматически остановлена и отправлена на распознавание после достижения этого времени (5000-120000 мс, по умолчанию: 60000). Это позволяет получать сообщения по частям в процессе длинной речи.
+                    </p>
+                  </div>
+
+                  <div>
                     <label htmlFor="voice-freq-min" className="block text-sm font-medium text-gray-700 mb-2">
                       Минимальная частота речи (Гц)
                     </label>
@@ -558,6 +715,152 @@ export default function Settings({ isOpen, onClose }) {
                       Максимальный коэффициент вариации для стабильного сигнала (0.3-2.0, по умолчанию: 0.8). Чем ниже, тем строже фильтрация нестабильных звуков.
                     </p>
                   </div>
+
+                  <div className="pt-2 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <label htmlFor="filter-meaningless-text" className="block text-sm font-medium text-gray-700 mb-1">
+                          Фильтровать бессмысленный текст
+                        </label>
+                        <p className="text-xs text-gray-500">
+                          Включить фильтрацию текста, который может быть артефактом распознавания (междометия, повторения и т.д.)
+                        </p>
+                      </div>
+                      <div className="ml-4">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            id="filter-meaningless-text"
+                            type="checkbox"
+                            checked={filterMeaninglessText}
+                            onChange={(e) => setFilterMeaninglessText(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {filterMeaninglessText && (
+                    <div className="pt-4 space-y-4 border-t border-gray-200">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                        <p className="text-xs text-blue-800">
+                          💡 <strong>Параметры фильтрации:</strong> Настройте параметры фильтра бессмысленного текста для более точной работы.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="min-text-length" className="block text-sm font-medium text-gray-700 mb-2">
+                          Минимальная длина текста (символов)
+                        </label>
+                        <input
+                          id="min-text-length"
+                          type="number"
+                          min="1"
+                          max="10"
+                          step="1"
+                          value={minTextLength}
+                          onChange={(e) => setMinTextLength(parseInt(e.target.value, 10) || 3)}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          aria-describedby="min-text-length-help"
+                        />
+                        <p id="min-text-length-help" className="text-sm text-gray-500 mt-1">
+                          Минимальная длина текста без знаков препинания (1-10 символов, по умолчанию: 3). Более короткие тексты будут отфильтрованы.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="min-single-word-length" className="block text-sm font-medium text-gray-700 mb-2">
+                          Минимальная длина одиночного слова (символов)
+                        </label>
+                        <input
+                          id="min-single-word-length"
+                          type="number"
+                          min="1"
+                          max="5"
+                          step="1"
+                          value={minSingleWordLength}
+                          onChange={(e) => setMinSingleWordLength(parseInt(e.target.value, 10) || 2)}
+                          className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          aria-describedby="min-single-word-length-help"
+                        />
+                        <p id="min-single-word-length-help" className="text-sm text-gray-500 mt-1">
+                          Минимальная длина одиночного слова (1-5 символов, по умолчанию: 2). Более короткие одиночные слова будут отфильтрованы.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <label htmlFor="filter-artifacts" className="block text-sm font-medium text-gray-700 mb-1">
+                              Фильтровать артефакты
+                            </label>
+                            <p className="text-xs text-gray-500">
+                              Фильтровать повторяющиеся слова и звуки клавиатуры (bye bye bye, no no no и т.д.)
+                            </p>
+                          </div>
+                          <div className="ml-4">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                id="filter-artifacts"
+                                type="checkbox"
+                                checked={filterArtifacts}
+                                onChange={(e) => setFilterArtifacts(e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <label htmlFor="filter-interjections" className="block text-sm font-medium text-gray-700 mb-1">
+                              Фильтровать междометия
+                            </label>
+                            <p className="text-xs text-gray-500">
+                              Фильтровать междометия и бессмысленные звуки (uh, um, эм, хм и т.д.)
+                            </p>
+                          </div>
+                          <div className="ml-4">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                id="filter-interjections"
+                                type="checkbox"
+                                checked={filterInterjections}
+                                onChange={(e) => setFilterInterjections(e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <label htmlFor="filter-short-phrases" className="block text-sm font-medium text-gray-700 mb-1">
+                              Фильтровать короткие фразы
+                            </label>
+                            <p className="text-xs text-gray-500">
+                              Фильтровать короткие приветствия и прощания (hi, bye, привет, пока и т.д.)
+                            </p>
+                          </div>
+                          <div className="ml-4">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                id="filter-short-phrases"
+                                type="checkbox"
+                                checked={filterShortPhrases}
+                                onChange={(e) => setFilterShortPhrases(e.target.checked)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

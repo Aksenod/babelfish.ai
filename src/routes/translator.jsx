@@ -10,9 +10,18 @@ import SummaryDrawer from '../components/SummaryDrawer';
 import EditSessionDrawer from '../components/EditSessionDrawer';
 import DeleteSessionDrawer from '../components/DeleteSessionDrawer';
 import { Button } from '../components/ui';
-import { transcribeAudio, translateText } from '../utils/api';
-import { getSession, addMessageToSession, updateMessageInSession, updateSession, deleteSession } from '../utils/sessionManager';
-import { isMeaningfulText, hasCompleteSentences } from '../utils/utils';
+import { getSession, updateSession, deleteSession, deleteMessageFromSession } from '../utils/sessionManager';
+import {
+  getApiKeys,
+  getTranslationModel,
+  getVoiceSettings,
+  getMaxRecordingDuration,
+} from '../utils/settings';
+import { generateMessageId } from '../utils/messageIdGenerator';
+import { useSettings } from '../hooks/useSettings';
+import { useVoiceActivityDetection } from '../hooks/useVoiceActivityDetection';
+import { processAudio as processAudioService, finalizeSentenceBuffer } from '../services/audioProcessingService';
+import { createTestMessages } from '../utils/createTestMessages';
 
 // Icons
 const ArrowLeftIcon = () => (
@@ -82,65 +91,24 @@ function Translator() {
   const isListeningRef = useRef(false);
   const isSessionActiveRef = useRef(false); // Ref для синхронного доступа к состоянию сессии
   const sessionIdRef = useRef(null); // Ref для хранения sessionId
-  const pendingFragmentsRef = useRef([]); // Буфер для фрагментов, ожидающих объединения
-  const lastFragmentTimeRef = useRef(null); // Время последнего фрагмента
   const recentAudioLevelsRef = useRef([]); // История уровней аудио для проверки стабильности
   const recordingStartTimeRef = useRef(null); // Время начала записи
+  const textStreamRef = useRef('');
+  const recentSentencesRef = useRef([]);
+  const sentenceBufferRef = useRef([]); // Буфер для накопления предложений перед созданием карточки
+  const transcriptionWorkerRef = useRef(null);
+  const transcriptionWorkerStatusRef = useRef('idle');
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const isSwiping = useRef(false);
+  const messagesScrollContainerMobileRef = useRef(null); // Ref для мобильного контейнера скролла
+  const messagesScrollContainerDesktopRef = useRef(null); // Ref для десктопного контейнера скролла
+  const isFirstChunkRef = useRef(true); // Флаг для отслеживания первого чанка (содержит WebM заголовок)
+  const lastProcessedChunkIndexRef = useRef(0); // Индекс последнего обработанного чанка
+  const periodicProcessingTimerRef = useRef(null); // Таймер для периодической обработки чанков
 
-  // Load API keys from localStorage only (для безопасности - ключи не попадают в бандл)
-  // В dev режиме можно использовать .env файл через Settings компонент
-  const getApiKeys = () => {
-    // Всегда используем только localStorage - ключи не попадают в production бандл
-    // Пользователь вводит ключи через Settings и они сохраняются в localStorage
-    return {
-      openai: localStorage.getItem('openai_api_key') || '',
-      yandex: localStorage.getItem('yandex_api_key') || '',
-      google: localStorage.getItem('google_api_key') || '',
-    };
-  };
-
-  // Get translation model from localStorage
-  const getTranslationModel = () => {
-    return localStorage.getItem('translation_model') || 'yandex';
-  };
-
-  // Load voice detection settings from localStorage
-  const getVoiceSettings = () => ({
-    threshold: parseInt(localStorage.getItem('voice_threshold') || '30', 10),
-    silenceDuration: parseInt(localStorage.getItem('silence_duration') || '3000', 10),
-    minRecordingDuration: parseInt(localStorage.getItem('min_recording_duration') || '300', 10),
-    voiceFreqMin: parseInt(localStorage.getItem('voice_freq_min') || '85', 10),
-    voiceFreqMax: parseInt(localStorage.getItem('voice_freq_max') || '4000', 10),
-    stabilityCheckSamples: parseInt(localStorage.getItem('stability_check_samples') || '3', 10),
-    voiceEnergyRatio: parseFloat(localStorage.getItem('voice_energy_ratio') || '0.3', 10),
-    stabilityCoefficient: parseFloat(localStorage.getItem('stability_coefficient') || '0.8', 10),
-  });
-
-  // Получение задержки объединения фрагментов из localStorage
-  const getMergeDelay = () => {
-    return parseInt(localStorage.getItem('merge_delay') || '2500', 10);
-  };
-
-  // Проверка условия автоматической отправки на перевод
-  // Возвращает true, если текст >= 300 символов И есть законченные предложения
-  const shouldAutoTranslate = (text) => {
-    if (!text || typeof text !== 'string') {
-      return false;
-    }
-
-    const trimmed = text.trim();
-    
-    // Проверяем длину текста (все символы, включая пробелы и знаки препинания)
-    if (trimmed.length < 300) {
-      return false;
-    }
-
-    // Проверяем наличие законченных предложений
-    return hasCompleteSentences(trimmed);
-  };
+  const { sentenceDisplaySettings, transcriptionSource } = useSettings();
+  const { sentencesOnScreen, showOriginal } = sentenceDisplaySettings;
 
   // Load session on mount
   useEffect(() => {
@@ -172,56 +140,16 @@ function Translator() {
           ...msg,
           timestamp: new Date(msg.timestamp)
         }));
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/b16a615c-184f-44c1-8c63-1218a7f5cabc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'translator.jsx:136',message:'Loading messages from session',data:{loadedMessagesCount:loadedMessages.length,loadedMessageIds:loadedMessages.map(m=>m.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         setMessages(loadedMessages);
       } else {
-        // Add demo messages if session is empty
-        const now = new Date();
-        const demoMessages = [
-          {
-            id: Date.now() - 5000,
-            original: "How do you spell Zavutedo? How?",
-            translated: "Как пишется Завутедо? Как?",
-            timestamp: new Date(now.getTime() - 300000)
-          },
-          {
-            id: Date.now() - 4000,
-            original: "Can you imagine making 10 of these programs and doing it on every 1000?",
-            translated: "Можете ли вы представить, что нужно создать 10 таких программ и делать это с каждой 1000?",
-            timestamp: new Date(now.getTime() - 180000)
-          },
-          {
-            id: Date.now() - 3000,
-            original: "More than a thousand subscribers would be great.",
-            translated: "Было бы здорово иметь больше тысячи подписчиков.",
-            timestamp: new Date(now.getTime() - 180000)
-          },
-          {
-            id: Date.now() - 2000,
-            original: "One and all your videos, you have a lot of money. In short, there are so many different videos from me...",
-            translated: "Все ваши видео без исключения приносят вам много денег. Короче говоря, у меня очень много разных видео...",
-            timestamp: new Date(now.getTime() - 180000)
-          },
-          {
-            id: Date.now() - 1000,
-            original: "I think that was not so good, I should've shook my head.",
-            translated: "Я думаю, это было не очень хорошо, мне следовало покачать головой.",
-            timestamp: new Date(now.getTime() - 120000)
-          },
-          {
-            id: Date.now() - 500,
-            original: "The weather today is absolutely beautiful, perfect for a walk in the park.",
-            translated: "Погода сегодня просто прекрасная, идеально подходит для прогулки в парке.",
-            timestamp: new Date(now.getTime() - 60000)
-          },
-          {
-            id: Date.now() - 250,
-            original: "Could you please help me understand this complex algorithm?",
-            translated: "Не могли бы вы помочь мне понять этот сложный алгоритм?",
-            timestamp: new Date(now.getTime() - 30000)
-          }
-        ];
-        setMessages(demoMessages);
+        // Session is empty - set empty messages array
+        setMessages([]);
       }
+      textStreamRef.current = '';
+      recentSentencesRef.current = [];
     } catch (err) {
       console.error('Error loading session:', err);
       navigate('/');
@@ -239,6 +167,101 @@ function Translator() {
     const savedLanguage = localStorage.getItem('ui_language') || 'en';
     setUiLanguage(savedLanguage);
   }, []);
+
+  // Make createTestMessages available in console for debugging
+  useEffect(() => {
+    if (import.meta.env.DEV && sessionId) {
+      window.createTestMessages = (count = 10) => {
+        return createTestMessages(sessionId, count).then(() => {
+          // Reload messages after creation
+          const session = getSession(sessionId);
+          if (session && session.messages) {
+            const loadedMessages = session.messages.map(msg => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            }));
+            setMessages(loadedMessages);
+          }
+        });
+      };
+      console.log('💡 Функция createTestMessages(count) доступна в консоли для создания тестовых сообщений');
+    }
+    return () => {
+      if (window.createTestMessages) {
+        delete window.createTestMessages;
+      }
+    };
+  }, [sessionId]);
+
+  // Initialize transcription worker (local) when needed
+  useEffect(() => {
+    if (transcriptionSource !== 'local_worker') {
+      // Cleanup worker if switching away from local
+      if (transcriptionWorkerRef.current) {
+        transcriptionWorkerRef.current.terminate();
+        transcriptionWorkerRef.current = null;
+        transcriptionWorkerStatusRef.current = 'idle';
+      }
+      return;
+    }
+
+    if (!transcriptionWorkerRef.current) {
+      transcriptionWorkerRef.current = new Worker(
+        new URL('../transcriptionWorker.js', import.meta.url),
+        { type: 'module' }
+      );
+    }
+
+    const worker = transcriptionWorkerRef.current;
+    const handleWorkerMessage = (event) => {
+      if (event.data?.status === 'ready') {
+        transcriptionWorkerStatusRef.current = 'ready';
+        console.log('[TRANSCRIPTION:worker] Worker ready');
+      } else if (event.data?.status === 'error') {
+        console.error('[TRANSCRIPTION:worker] Worker error:', event.data);
+        setError('Ошибка загрузки локальной модели распознавания. Попробуйте использовать OpenAI Whisper.');
+        transcriptionWorkerStatusRef.current = 'error';
+      } else if (event.data?.status === 'loading') {
+        console.log('[TRANSCRIPTION:worker] Loading model...', event.data?.data);
+      }
+    };
+
+    worker.addEventListener('message', handleWorkerMessage);
+    worker.addEventListener('error', (error) => {
+      console.error('[TRANSCRIPTION:worker] Worker error event:', error);
+      setError('Ошибка инициализации локальной модели распознавания. Попробуйте использовать OpenAI Whisper.');
+      transcriptionWorkerStatusRef.current = 'error';
+    });
+
+    if (transcriptionWorkerStatusRef.current !== 'ready' && transcriptionWorkerStatusRef.current !== 'loading') {
+      transcriptionWorkerStatusRef.current = 'loading';
+      worker.postMessage({ type: 'load' });
+    }
+
+    return () => {
+      worker.removeEventListener('message', handleWorkerMessage);
+    };
+  }, [transcriptionSource, setError]);
+
+  // Плавный скролл вниз при появлении новых карточек
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b16a615c-184f-44c1-8c63-1218a7f5cabc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'translator.jsx:214',message:'Messages state updated',data:{messagesCount:messages.length,messagesIds:messages.map(m=>m.id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+
+    const scrollToBottom = (container) => {
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    };
+
+    // Скроллим оба контейнера (мобильный и десктопный)
+    scrollToBottom(messagesScrollContainerMobileRef.current);
+    scrollToBottom(messagesScrollContainerDesktopRef.current);
+  }, [messages]);
 
   // Initialize audio recording and voice activity detection
   useEffect(() => {
@@ -283,19 +306,92 @@ function Translator() {
 
         recorderRef.current.ondataavailable = (event) => {
           if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
             console.log('[VAD:chunk] Получен аудио чанк', {
               chunkSize: event.data.size,
               chunkSizeKB: (event.data.size / 1024).toFixed(2),
-              totalChunks: audioChunksRef.current.length,
-              totalSize: audioChunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0),
-              totalSizeKB: (audioChunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0) / 1024).toFixed(2),
+              mimeType: event.data.type || 'unknown',
+              isFirstChunk: isFirstChunkRef.current,
               timestamp: new Date().toISOString(),
             });
+
+            // Накапливаем все чанки для финальной обработки
+            audioChunksRef.current.push(event.data);
+
+            // Обрабатываем только первый чанк во время записи
+            // Первый чанк содержит WebM заголовок и может быть декодирован отдельно
+            if (isRecordingRef.current && isFirstChunkRef.current) {
+              const MIN_CHUNK_SIZE = 1024; // 1KB
+              if (event.data.size >= MIN_CHUNK_SIZE) {
+                console.log('[VAD:chunk] Обработка первого чанка (содержит WebM заголовок)');
+                processAudio(event.data);
+                isFirstChunkRef.current = false;
+                lastProcessedChunkIndexRef.current = 0; // Первый чанк обработан
+                
+                // Запускаем периодическую обработку накопленных чанков
+                startPeriodicProcessing();
+              } else {
+                console.log('[VAD:chunk] Первый чанк слишком маленький, пропускаем', {
+                  chunkSize: event.data.size,
+                  minSize: MIN_CHUNK_SIZE,
+                });
+              }
+            }
           }
         };
 
+        // Функция для периодической обработки накопленных чанков
+        const startPeriodicProcessing = () => {
+          // Очищаем предыдущий таймер, если есть
+          if (periodicProcessingTimerRef.current) {
+            clearInterval(periodicProcessingTimerRef.current);
+          }
+
+          // Обрабатываем накопленные чанки каждые 2 секунды
+          const PROCESSING_INTERVAL = 2000; // 2 секунды
+          periodicProcessingTimerRef.current = setInterval(() => {
+            if (!isRecordingRef.current || isProcessingRef.current) {
+              return; // Не обрабатываем, если запись остановлена или идет обработка
+            }
+
+            // Проверяем, есть ли новые чанки для обработки
+            const totalChunks = audioChunksRef.current.length;
+            const processedChunks = lastProcessedChunkIndexRef.current + 1;
+            
+            if (totalChunks > processedChunks) {
+              // Есть новые чанки для обработки
+              // Создаем blob из всех чанков, начиная с первого (который содержит заголовок)
+              // и включая все новые чанки
+              const chunksToProcess = audioChunksRef.current.slice(0, totalChunks);
+              const accumulatedBlob = new Blob(chunksToProcess, { 
+                type: recorderRef.current?.mimeType || 'audio/webm' 
+              });
+
+              console.log('[VAD:periodic] Периодическая обработка накопленных чанков', {
+                blobSize: accumulatedBlob.size,
+                blobSizeKB: (accumulatedBlob.size / 1024).toFixed(2),
+                chunksCount: chunksToProcess.length,
+                processedChunks,
+                totalChunks,
+                timestamp: new Date().toISOString(),
+              });
+
+              // Обрабатываем только если blob достаточно большой
+              const MIN_BLOB_SIZE = 2048; // 2KB
+              if (accumulatedBlob.size >= MIN_BLOB_SIZE) {
+                processAudio(accumulatedBlob);
+                lastProcessedChunkIndexRef.current = totalChunks - 1; // Обновляем индекс последнего обработанного чанка
+              }
+            }
+          }, PROCESSING_INTERVAL);
+        };
+
         recorderRef.current.onstop = async () => {
+          // Останавливаем периодическую обработку
+          if (periodicProcessingTimerRef.current) {
+            clearInterval(periodicProcessingTimerRef.current);
+            periodicProcessingTimerRef.current = null;
+          }
+
           const chunksCount = audioChunksRef.current.length;
           const totalSize = audioChunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0);
           
@@ -305,36 +401,66 @@ function Translator() {
             totalSizeKB: (totalSize / 1024).toFixed(2),
             totalSizeMB: (totalSize / (1024 * 1024)).toFixed(2),
             recorderState: recorderRef.current?.state,
+            lastProcessedChunkIndex: lastProcessedChunkIndexRef.current,
             timestamp: new Date().toISOString(),
           });
 
-          if (audioChunksRef.current.length === 0) {
-            console.warn('[VAD:stop] Нет аудио чанков для обработки');
-            // Перезапускаем прослушивание даже если нет чанков, чтобы не пропустить речь
-            setTimeout(() => {
-              safeRestartListening();
-            }, 100);
-            return;
+          // Обрабатываем финальный blob, если есть необработанные чанки
+          const totalChunks = audioChunksRef.current.length;
+          const processedChunks = lastProcessedChunkIndexRef.current + 1;
+          
+          if (totalChunks > processedChunks) {
+            // Есть необработанные чанки - обрабатываем их
+            const chunksToProcess = audioChunksRef.current.slice(0, totalChunks);
+            const finalBlob = new Blob(chunksToProcess, { 
+              type: recorderRef.current?.mimeType || 'audio/webm' 
+            });
+            
+            console.log('[VAD:stop] Обработка финального blob с необработанными чанками', {
+              blobSize: finalBlob.size,
+              blobSizeKB: (finalBlob.size / 1024).toFixed(2),
+              chunksCount: chunksToProcess.length,
+              processedChunks,
+              totalChunks,
+              timestamp: new Date().toISOString(),
+            });
+            
+            const MIN_FINAL_BLOB_SIZE = 2048; // 2KB
+            if (finalBlob.size >= MIN_FINAL_BLOB_SIZE) {
+              processAudio(finalBlob);
+            }
+          } else if (totalChunks === 1 && isFirstChunkRef.current) {
+            // Если только один чанк и он не был обработан, обрабатываем его
+            const finalBlob = new Blob(audioChunksRef.current, { 
+              type: recorderRef.current?.mimeType || 'audio/webm' 
+            });
+            
+            const MIN_FINAL_BLOB_SIZE = 2048; // 2KB
+            if (finalBlob.size >= MIN_FINAL_BLOB_SIZE) {
+              console.log('[VAD:stop] Обработка единственного чанка', {
+                blobSize: finalBlob.size,
+                blobSizeKB: (finalBlob.size / 1024).toFixed(2),
+                timestamp: new Date().toISOString(),
+              });
+              processAudio(finalBlob);
+            }
+          } else {
+            console.log('[VAD:stop] Все чанки уже обработаны, финальный blob не нужен', {
+              totalChunks,
+              processedChunks,
+              timestamp: new Date().toISOString(),
+            });
           }
 
-          const audioBlob = new Blob(audioChunksRef.current, { type: supportedMimeType });
+          // Очищаем накопленные чанки и сбрасываем флаги
           audioChunksRef.current = [];
-
-          console.log('[VAD:stop] Создан audioBlob', {
-            blobSize: audioBlob.size,
-            blobSizeKB: (audioBlob.size / 1024).toFixed(2),
-            blobSizeMB: (audioBlob.size / (1024 * 1024)).toFixed(2),
-            mimeType: supportedMimeType,
-            timestamp: new Date().toISOString(),
-          });
+          isFirstChunkRef.current = true;
+          lastProcessedChunkIndexRef.current = 0;
 
           // Сразу перезапускаем прослушивание, чтобы не пропустить речь во время обработки
           setTimeout(() => {
             safeRestartListening();
           }, 100);
-
-          // Обрабатываем аудио асинхронно (не блокируя прослушивание)
-          processAudio(audioBlob);
         };
 
         // Не запускаем прослушивание автоматически - ждем нажатия "Start session"
@@ -353,6 +479,9 @@ function Translator() {
       if (voiceActivityCheckRef.current) {
         cancelAnimationFrame(voiceActivityCheckRef.current);
       }
+      if (periodicProcessingTimerRef.current) {
+        clearInterval(periodicProcessingTimerRef.current);
+      }
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -363,379 +492,47 @@ function Translator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Voice Activity Detection parameters
-  const CHECK_INTERVAL = 100; // Интервал проверки активности голоса в мс
-
-  // Calculate audio level from analyser data
-  const getAudioLevel = () => {
-    if (!analyserRef.current || !dataArrayRef.current) return 0;
-
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-    
-    // Calculate average volume
-    let sum = 0;
-    for (let i = 0; i < dataArrayRef.current.length; i++) {
-      sum += dataArrayRef.current[i];
-    }
-    return sum / dataArrayRef.current.length;
+  // Инициализация VAD хука
+  const vadRefs = {
+    analyserRef,
+    dataArrayRef,
+    audioContextRef,
+    recorderRef,
+    mediaStreamRef,
+    audioChunksRef,
+    isRecordingRef,
+    isListeningRef,
+    isProcessingRef,
+    isSessionActiveRef,
+    voiceActivityCheckRef,
+    silenceTimerRef,
+    recordingStartTimeRef,
+    recentAudioLevelsRef,
+    isFirstChunkRef,
+    lastProcessedChunkIndexRef,
+    periodicProcessingTimerRef,
   };
 
-  // Проверка частотных характеристик для определения речи
-  const isVoiceLike = () => {
-    if (!analyserRef.current || !dataArrayRef.current || !audioContextRef.current) return false;
+  // Функция stopAndProcess для VAD хука (будет определена после создания vadFunctions)
+  const stopAndProcessRef = useRef(null);
 
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
-    
-    const { voiceFreqMin, voiceFreqMax, voiceEnergyRatio } = getVoiceSettings();
-    
-    // Получаем частотное разрешение
-    const sampleRate = audioContextRef.current.sampleRate || 44100;
-    const fftSize = analyserRef.current.fftSize;
-    const frequencyResolution = sampleRate / fftSize;
-    
-    // Определяем индексы частот для речевого диапазона
-    const voiceMinIndex = Math.floor(voiceFreqMin / frequencyResolution);
-    const voiceMaxIndex = Math.floor(voiceFreqMax / frequencyResolution);
-    
-    // Вычисляем энергию в речевом диапазоне
-    let voiceEnergy = 0;
-    let totalEnergy = 0;
-    
-    for (let i = 0; i < dataArrayRef.current.length; i++) {
-      const freq = i * frequencyResolution;
-      const energy = dataArrayRef.current[i];
-      totalEnergy += energy;
-      
-      if (freq >= voiceFreqMin && freq <= voiceFreqMax) {
-        voiceEnergy += energy;
-      }
-    }
-    
-    // Если общая энергия слишком мала, это не речь
-    if (totalEnergy < 5) {
-      return false;
-    }
-    
-    // Доля энергии в речевом диапазоне должна быть значительной
-    const calculatedRatio = voiceEnergy / totalEnergy;
-    return calculatedRatio >= voiceEnergyRatio;
-  };
+  // VAD функции из хука
+  const vadFunctions = useVoiceActivityDetection(
+    vadRefs,
+    setIsListening,
+    setIsRecording,
+    () => stopAndProcessRef.current?.()
+  );
 
-  // Проверка стабильности сигнала (речь более стабильна, чем щелчки)
-  const isStableSignal = () => {
-    const { stabilityCheckSamples, stabilityCoefficient } = getVoiceSettings();
-    
-    if (recentAudioLevelsRef.current.length < stabilityCheckSamples) {
-      return false;
-    }
-    
-    const levels = recentAudioLevelsRef.current.slice(-stabilityCheckSamples);
-    const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
-    const variance = levels.reduce((sum, level) => sum + Math.pow(level - avg, 2), 0) / levels.length;
-    const stdDev = Math.sqrt(variance);
-    
-    // Для речи стандартное отклонение относительно невелико
-    // Для коротких щелчков клавиатуры - очень большое
-    const coefficientOfVariation = avg > 0 ? stdDev / avg : Infinity;
-    
-    // Коэффициент вариации для речи обычно < 0.5, для щелчков > 1.0
-    return coefficientOfVariation < stabilityCoefficient;
-  };
-
-  // Safe restart helper function
-  const safeRestartListening = () => {
-    console.log('[VAD:restart] safeRestartListening вызвана', {
-      mediaStreamActive: mediaStreamRef.current?.active,
-      isRecording: isRecordingRef.current,
-      isProcessing: isProcessingRef.current,
-      isListening: isListeningRef.current,
-      isSessionActive: isSessionActiveRef.current,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Проверяем, активна ли сессия
-    if (!isSessionActiveRef.current) {
-      console.log('[VAD:restart] Сессия не активна, перезапуск невозможен');
-      return false;
-    }
-
-    // Проверяем все условия перед перезапуском
-    if (!mediaStreamRef.current?.active) {
-      console.warn('[VAD:restart] MediaStream не активен, перезапуск невозможен');
-      return false;
-    }
-
-    // Разрешаем перезапуск даже во время обработки, чтобы не пропускать речь пользователя
-    if (isRecordingRef.current) {
-      console.warn('[VAD:restart] Запись активна, перезапуск невозможен');
-      return false;
-    }
-
-    // Отменяем предыдущий цикл проверки, если он есть
-    if (voiceActivityCheckRef.current) {
-      cancelAnimationFrame(voiceActivityCheckRef.current);
-      voiceActivityCheckRef.current = null;
-      console.log('[VAD:restart] Предыдущий цикл проверки отменен');
-    }
-
-    // Небольшая задержка перед перезапуском, чтобы избежать захвата остатков предыдущей записи
-    setTimeout(() => {
-      startListening();
-    }, 100);
-    return true;
-  };
-
-  // Start listening for voice activity (waiting for speech to begin)
-  const startListening = () => {
-    console.log('[VAD:startListening] Попытка запуска прослушивания', {
-      isRecording: isRecordingRef.current,
-      isProcessing: isProcessingRef.current,
-      isListening: isListeningRef.current,
-      isSessionActive: isSessionActiveRef.current,
-      mediaStreamActive: mediaStreamRef.current?.active,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Проверяем, активна ли сессия
-    if (!isSessionActiveRef.current) {
-      console.log('[VAD:startListening] Прослушивание не запущено - сессия не активна');
-      return;
-    }
-
-    // Разрешаем прослушивание даже во время обработки, чтобы не пропускать речь пользователя
-    if (isRecordingRef.current) {
-      console.warn('[VAD:startListening] Прослушивание не запущено - активна запись', {
-        isRecording: isRecordingRef.current,
-      });
-      return;
-    }
-
-    setIsListening(true);
-    isListeningRef.current = true; // Синхронное обновление ref
-    console.log('[VAD:startListening] Прослушивание запущено', {
-      timestamp: new Date().toISOString(),
-    });
-    
-    // Гарантируем запуск цикла проверки
-    // Отменяем предыдущий цикл, если он есть
-    if (voiceActivityCheckRef.current) {
-      cancelAnimationFrame(voiceActivityCheckRef.current);
-      voiceActivityCheckRef.current = null;
-    }
-    
-    // Запускаем новый цикл
-    checkVoiceActivity();
-  };
-
-  // Check for voice activity continuously
-  const checkVoiceActivity = () => {
-    // Проверяем, активна ли сессия
-    if (!isSessionActiveRef.current) {
-      console.log('[VAD:checkVoice] Проверка пропущена - сессия не активна');
-      return;
-    }
-
-    if (!analyserRef.current || !dataArrayRef.current) {
-      console.warn('[VAD:checkVoice] Пропуск проверки - нет analyser или dataArray', {
-        hasAnalyser: !!analyserRef.current,
-        hasDataArray: !!dataArrayRef.current,
-      });
-      return;
-    }
-
-    const { threshold, silenceDuration } = getVoiceSettings();
-    const audioLevel = getAudioLevel();
-    
-    // Обновляем историю уровней для проверки стабильности
-    recentAudioLevelsRef.current.push(audioLevel);
-    const { stabilityCheckSamples } = getVoiceSettings();
-    if (recentAudioLevelsRef.current.length > stabilityCheckSamples * 2) {
-      recentAudioLevelsRef.current.shift(); // Держим только последние N значений
-    }
-
-    // Логируем только периодически, чтобы не засорять консоль
-    const shouldLog = Math.random() < 0.01; // Логируем ~1% проверок
-    if (shouldLog) {
-      console.log('[VAD:checkVoice] Проверка активности голоса', {
-        audioLevel: audioLevel.toFixed(2),
-        threshold,
-        isRecording: isRecordingRef.current,
-        isListening: isListeningRef.current,
-        isProcessing: isProcessingRef.current,
-        hasSilenceTimer: !!silenceTimerRef.current,
-      });
-    }
-
-    // Улучшенная проверка начала записи с более строгими требованиями
-    if (!isRecordingRef.current && audioLevel > threshold) {
-      // Дополнительные проверки для фильтрации звуков клавиатуры и посторонних звуков
-      const hasVoiceLikeFrequencies = isVoiceLike();
-      const isStable = isStableSignal();
-      
-      // Требуем ОБА условия для начала записи:
-      // 1. Сигнал должен иметь речевые частоты ИЛИ быть стабильным
-      // 2. Дополнительно: уровень должен быть достаточно высоким (не просто шум)
-      const minEnergyForRecording = threshold * 1.5; // Требуем уровень выше порога на 50%
-      const hasEnoughEnergy = audioLevel >= minEnergyForRecording;
-      
-      // Для начала записи требуем:
-      // - Речевые частоты ИЛИ стабильный сигнал
-      // - Достаточный уровень энергии (не просто фоновый шум)
-      // - Стабильность проверяется только если есть достаточно истории
-      const canStartRecording = hasEnoughEnergy && 
-        (hasVoiceLikeFrequencies || (isStable && recentAudioLevelsRef.current.length >= stabilityCheckSamples));
-      
-      if (canStartRecording) {
-        console.log('[VAD:checkVoice] Обнаружен голос - начало записи', {
-          audioLevel: audioLevel.toFixed(2),
-          threshold,
-          minEnergyForRecording: minEnergyForRecording.toFixed(2),
-          hasVoiceLikeFrequencies,
-          isStable,
-          hasEnoughEnergy,
-          timestamp: new Date().toISOString(),
-        });
-        startRecording();
-      } else {
-        // Логируем пропущенные события для отладки
-        if (Math.random() < 0.1) { // Логируем ~10% пропущенных событий
-          console.log('[VAD:checkVoice] Звук пропущен (не похож на речь или недостаточная энергия)', {
-            audioLevel: audioLevel.toFixed(2),
-            threshold,
-            minEnergyForRecording: minEnergyForRecording.toFixed(2),
-            hasVoiceLikeFrequencies,
-            isStable,
-            hasEnoughEnergy,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
-    } else if (isRecordingRef.current) {
-      // Already recording - check for silence
-      if (audioLevel < threshold) {
-        // Silence detected - start/update silence timer
-        if (!silenceTimerRef.current) {
-          console.log('[VAD:checkVoice] Обнаружена тишина - запуск таймера', {
-            audioLevel: audioLevel.toFixed(2),
-            threshold,
-            silenceDuration,
-            timestamp: new Date().toISOString(),
-          });
-          silenceTimerRef.current = setTimeout(() => {
-            // Silence duration exceeded - stop recording
-            console.log('[VAD:checkVoice] Длительность тишины превышена - остановка записи', {
-              silenceDuration,
-              timestamp: new Date().toISOString(),
-            });
-            stopAndProcess();
-          }, silenceDuration);
-        }
-      } else {
-        // Voice still active - clear silence timer
-        if (silenceTimerRef.current) {
-          console.log('[VAD:checkVoice] Голос активен - очистка таймера тишины', {
-            audioLevel: audioLevel.toFixed(2),
-            threshold,
-            timestamp: new Date().toISOString(),
-          });
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-      }
-    }
-
-    // Continue checking - продолжаем во время прослушивания или записи
-    // Также продолжаем во время обработки, чтобы не пропускать новую речь пользователя
-    // Но только если сессия активна
-    const shouldContinue = isSessionActiveRef.current && (isListeningRef.current || isRecordingRef.current);
-    
-    if (shouldContinue) {
-      // Используем requestAnimationFrame для плавной работы
-      voiceActivityCheckRef.current = requestAnimationFrame(() => {
-        // Используем setTimeout для контроля интервала проверки
-        setTimeout(() => {
-          // Проверяем, что состояние не изменилось перед следующим вызовом
-          // Продолжаем проверку во время прослушивания или записи, если сессия активна
-          if (isSessionActiveRef.current && (isListeningRef.current || isRecordingRef.current)) {
-            checkVoiceActivity();
-          } else {
-            console.log('[VAD:checkVoice] Состояние изменилось, цикл остановлен', {
-              isSessionActive: isSessionActiveRef.current,
-              isListening: isListeningRef.current,
-              isRecording: isRecordingRef.current,
-              timestamp: new Date().toISOString(),
-            });
-          }
-        }, CHECK_INTERVAL);
-      });
-    } else {
-      // Если прослушивание не активно, но обработка идет и сессия активна - перезапускаем прослушивание
-      // чтобы не пропустить речь пользователя во время обработки
-      if (isSessionActiveRef.current && isProcessingRef.current && !isListeningRef.current) {
-        console.log('[VAD:checkVoice] Обработка идет, перезапускаем прослушивание', {
-          isProcessing: isProcessingRef.current,
-          isListening: isListeningRef.current,
-          timestamp: new Date().toISOString(),
-        });
-        startListening();
-        return;
-      }
-      
-      console.log('[VAD:checkVoice] Цикл проверки остановлен', {
-        isListening: isListeningRef.current,
-        isRecording: isRecordingRef.current,
-        timestamp: new Date().toISOString(),
-      });
-      
-      // Очищаем ref, если цикл остановлен
-      if (voiceActivityCheckRef.current) {
-        cancelAnimationFrame(voiceActivityCheckRef.current);
-        voiceActivityCheckRef.current = null;
-      }
-    }
-  };
-
-  // Start recording when voice is detected
-  const startRecording = () => {
-    console.log('[VAD:startRecording] Попытка начала записи', {
-      hasRecorder: !!recorderRef.current,
-      recorderState: recorderRef.current?.state,
-      timestamp: new Date().toISOString(),
-    });
-
-    if (!recorderRef.current || recorderRef.current.state === 'recording') {
-      console.warn('[VAD:startRecording] Запись не может быть начата', {
-        hasRecorder: !!recorderRef.current,
-        recorderState: recorderRef.current?.state,
-      });
-      return;
-    }
-
-    audioChunksRef.current = [];
-    recordingStartTimeRef.current = Date.now(); // Устанавливаем время начала записи
-    recorderRef.current.start();
-    setIsRecording(true);
-    isRecordingRef.current = true; // Синхронное обновление ref
-    setIsListening(false);
-    isListeningRef.current = false; // Синхронное обновление ref
-
-    console.log('[SYNC:state] Состояние после начала записи', {
-      isRecording: isRecordingRef.current,
-      isListening: isListeningRef.current,
-      recorderState: recorderRef.current?.state,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Clear any existing silence timer
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-      console.log('[VAD:startRecording] Таймер тишины очищен');
-    }
-  };
+  const {
+    safeRestartListening,
+    startListening,
+    checkVoiceActivity,
+    startRecording: vadStartRecording,
+  } = vadFunctions;
 
   // Stop recording and process audio
-  const stopAndProcess = () => {
+  const stopAndProcess = useCallback(() => {
     console.log('[VAD:stopAndProcess] Попытка остановки записи', {
       hasRecorder: !!recorderRef.current,
       recorderState: recorderRef.current?.state,
@@ -835,6 +632,15 @@ function Translator() {
       timestamp: new Date().toISOString(),
     });
 
+    // Финализируем буфер предложений - создаем карточку с оставшимися предложениями
+    if (sentenceBufferRef.current && sentenceBufferRef.current.length > 0) {
+      finalizeSentenceBuffer({
+        sentenceBufferRef,
+        setMessages,
+        sessionIdRef,
+      });
+    }
+
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -849,7 +655,10 @@ function Translator() {
     
     // Сбрасываем время начала записи после успешной остановки
     recordingStartTimeRef.current = null;
-  };
+  }, [recorderRef, audioChunksRef, isRecordingRef, isListeningRef, setIsRecording, setIsListening, silenceTimerRef, voiceActivityCheckRef, recordingStartTimeRef, safeRestartListening]);
+
+  // Сохраняем ссылку на stopAndProcess для VAD хука
+  stopAndProcessRef.current = stopAndProcess;
 
   // Force translation of current recording
   const handleForceTranslate = () => {
@@ -916,608 +725,43 @@ function Translator() {
     // Если идет запись - остановить и обработать
     if (isRecording && recorderRef.current?.state === 'recording') {
       stopAndProcess();
+    } else {
+      // Если запись не идет, но есть предложения в буфере - финализируем их
+      if (sentenceBufferRef.current && sentenceBufferRef.current.length > 0) {
+        finalizeSentenceBuffer({
+          sentenceBufferRef,
+          setMessages,
+          sessionIdRef,
+        });
+      }
     }
   };
 
 
-  // Проверка энергии аудио перед обработкой
-  const checkAudioEnergy = async (audioBlob) => {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      
-      // Получаем данные канала
-      const channelData = audioBuffer.getChannelData(0);
-      
-      // Вычисляем RMS (Root Mean Square) - среднюю энергию сигнала
-      let sumSquares = 0;
-      for (let i = 0; i < channelData.length; i++) {
-        sumSquares += channelData[i] * channelData[i];
-      }
-      const rms = Math.sqrt(sumSquares / channelData.length);
-      
-      // Вычисляем среднюю амплитуду
-      let sumAmplitude = 0;
-      for (let i = 0; i < channelData.length; i++) {
-        sumAmplitude += Math.abs(channelData[i]);
-      }
-      const avgAmplitude = sumAmplitude / channelData.length;
-      
-      // Проверяем, что аудио не слишком тихое (порог для минимальной энергии)
-      const minEnergyThreshold = 0.01; // Минимальный RMS для обработки
-      const minAmplitudeThreshold = 0.005; // Минимальная средняя амплитуда
-      
-      await audioContext.close();
-      
-      return {
-        rms,
-        avgAmplitude,
-        hasEnoughEnergy: rms >= minEnergyThreshold && avgAmplitude >= minAmplitudeThreshold,
-        duration: audioBuffer.duration,
-      };
-    } catch (error) {
-      console.warn('[VAD:checkAudioEnergy] Ошибка проверки энергии аудио:', error);
-      // В случае ошибки разрешаем обработку (лучше обработать, чем пропустить речь)
-      return { hasEnoughEnergy: true, rms: 0, avgAmplitude: 0, duration: 0 };
-    }
-  };
-
-  const processAudio = async (audioBlob) => {
-    const processStartTime = Date.now();
-    
-    console.log('[VAD:processAudio] Начало обработки аудио', {
-      blobSize: audioBlob.size,
-      blobSizeKB: (audioBlob.size / 1024).toFixed(2),
-      isProcessing,
-      isProcessingRef: isProcessingRef.current,
-      isRecording: isRecordingRef.current,
-      isListening: isListeningRef.current,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Проверяем энергию аудио перед обработкой
-    const energyCheck = await checkAudioEnergy(audioBlob);
-    console.log('[VAD:processAudio] Проверка энергии аудио', {
-      rms: energyCheck.rms.toFixed(4),
-      avgAmplitude: energyCheck.avgAmplitude.toFixed(4),
-      hasEnoughEnergy: energyCheck.hasEnoughEnergy,
-      duration: energyCheck.duration.toFixed(2),
-      timestamp: new Date().toISOString(),
-    });
-    
-    // Если аудио слишком тихое, пропускаем обработку
-    if (!energyCheck.hasEnoughEnergy) {
-      console.log('[FILTER:energy] Аудио слишком тихое, пропускаем обработку', {
-        rms: energyCheck.rms.toFixed(4),
-        avgAmplitude: energyCheck.avgAmplitude.toFixed(4),
-        duration: energyCheck.duration.toFixed(2),
-        timestamp: new Date().toISOString(),
-      });
-      
-      // Перезапускаем прослушивание
-      if (!isListeningRef.current && !isRecordingRef.current) {
-        setTimeout(() => {
-          safeRestartListening();
-        }, 100);
-      }
+  // Обработка аудио через сервис
+  const processAudio = useCallback(async (audioBlob) => {
+    if (transcriptionSource === 'local_worker' && transcriptionWorkerStatusRef.current !== 'ready') {
+      setError('Локальная модель распознавания еще загружается.');
       return;
     }
 
-    // Разрешаем параллельную обработку, чтобы не блокировать запись новой речи
-    // Флаг isProcessing будет true если идет хотя бы одна обработка
-    setIsProcessing(true);
-    isProcessingRef.current = true; // Синхронное обновление ref
-    setError(null);
-
-    console.log('[SYNC:state] Состояние после setIsProcessing(true)', {
-      isProcessing: isProcessingRef.current,
-      isRecording: isRecordingRef.current,
-      isListening: isListeningRef.current,
-      timestamp: new Date().toISOString(),
+    // Вызываем сервис обработки аудио
+    await processAudioService(audioBlob, {
+      setIsProcessing,
+      isProcessingRef,
+      setError,
+      setMessages,
+      sessionIdRef,
+      textStreamRef,
+      recentSentencesRef,
+      sentenceBufferRef,
+      transcriptionSource,
+      transcriptionWorkerRef,
+      safeRestartListening,
+      isListeningRef,
+      isRecordingRef,
     });
-
-    try {
-      const { openai, yandex, google } = getApiKeys();
-      const translationModel = getTranslationModel();
-
-      if (!openai) {
-        throw new Error('OpenAI API ключ не настроен. Откройте настройки.');
-      }
-
-      // Проверяем ключ в зависимости от выбранной модели перевода
-      if (translationModel === 'google' && !google) {
-        throw new Error('Google Translate API ключ не настроен. Откройте настройки.');
-      } else if (translationModel === 'yandex' && !yandex) {
-        throw new Error('Яндекс.Переводчик API ключ не настроен. Откройте настройки.');
-      }
-
-      // Step 1: Transcribe audio
-      console.log('[VAD:processAudio] Начало распознавания речи', {
-        bufferState: {
-          fragmentsCount: pendingFragmentsRef.current.length,
-          fragments: pendingFragmentsRef.current.map(f => ({
-            text: f.text,
-            age: Date.now() - f.timestamp,
-          })),
-          lastFragmentTime: lastFragmentTimeRef.current 
-            ? Date.now() - lastFragmentTimeRef.current 
-            : null,
-        },
-        timestamp: new Date().toISOString(),
-      });
-      const transcribedText = await transcribeAudio(audioBlob, openai);
-      console.log('[VAD:processAudio] Распознавание завершено', {
-        transcribedText,
-        textLength: transcribedText.length,
-        timestamp: new Date().toISOString(),
-      });
-
-      // Явный лог распознанного текста
-      console.log('[RECOGNITION] ========================================');
-      console.log('[RECOGNITION] Распознанный текст из аудио:');
-      console.log('[RECOGNITION]', transcribedText);
-      console.log('[RECOGNITION] Длина текста:', transcribedText.length, 'символов');
-      console.log('[RECOGNITION] ========================================');
-
-      if (!transcribedText || transcribedText.trim().length === 0) {
-        console.warn('[VAD:processAudio] Пустой результат распознавания');
-        setIsProcessing(false);
-        isProcessingRef.current = false; // Синхронное обновление ref
-        
-        console.log('[SYNC:state] Состояние перед перезапуском (пустой текст)', {
-          isProcessing: isProcessingRef.current,
-          isRecording: isRecordingRef.current,
-          isListening: isListeningRef.current,
-          mediaStreamActive: mediaStreamRef.current?.active,
-          timestamp: new Date().toISOString(),
-        });
-
-        // Прослушивание уже должно быть перезапущено из onstop обработчика
-        // Но если по какой-то причине не перезапустилось - делаем это здесь
-        if (!isListeningRef.current && !isRecordingRef.current) {
-          setTimeout(() => {
-            safeRestartListening();
-          }, 100);
-        }
-        return;
-      }
-
-      // Проверка на осмысленность текста
-      if (!isMeaningfulText(transcribedText)) {
-        console.log('[FILTER:meaningless] Текст пропущен как бессмысленный или артефакт', {
-          text: transcribedText,
-          textLength: transcribedText.length,
-          timestamp: new Date().toISOString(),
-        });
-        setIsProcessing(false);
-        isProcessingRef.current = false;
-        
-        // Очищаем буфер фрагментов, так как текущий фрагмент бессмысленный
-        if (pendingFragmentsRef.current.length > 0) {
-          console.log('[FILTER:meaningless] Очистка буфера фрагментов', {
-            clearedFragments: pendingFragmentsRef.current.length,
-            timestamp: new Date().toISOString(),
-          });
-          pendingFragmentsRef.current = [];
-          lastFragmentTimeRef.current = null;
-        }
-        
-        console.log('[SYNC:state] Состояние перед перезапуском (бессмысленный текст)', {
-          isProcessing: isProcessingRef.current,
-          isRecording: isRecordingRef.current,
-          isListening: isListeningRef.current,
-          mediaStreamActive: mediaStreamRef.current?.active,
-          timestamp: new Date().toISOString(),
-        });
-
-        if (!isListeningRef.current && !isRecordingRef.current) {
-          setTimeout(() => {
-            safeRestartListening();
-          }, 100);
-        }
-        return;
-      }
-
-      // Проверяем, нужно ли объединить с предыдущими фрагментами
-      const currentTime = Date.now();
-      const timeSinceLastFragment = lastFragmentTimeRef.current 
-        ? currentTime - lastFragmentTimeRef.current 
-        : Infinity;
-      
-      const mergeWindow = getMergeDelay();
-      
-      console.log('[MERGE:check] Проверка условий объединения', {
-        timeSinceLastFragment: timeSinceLastFragment === Infinity ? 'first_fragment' : `${timeSinceLastFragment}ms`,
-        mergeWindow: `${mergeWindow}ms`,
-        bufferSize: pendingFragmentsRef.current.length,
-        bufferContents: pendingFragmentsRef.current.map((f, i) => ({
-          index: i,
-          text: f.text,
-          age: `${currentTime - f.timestamp}ms`,
-        })),
-        currentText: transcribedText,
-        canMerge: timeSinceLastFragment <= mergeWindow && pendingFragmentsRef.current.length > 0,
-        timestamp: new Date().toISOString(),
-      });
-      
-      let finalText = transcribedText.trim();
-      let shouldMerge = false;
-      let shouldAutoTranslateFlag = false;
-
-      // Если есть недавние фрагменты (в пределах окна объединения)
-      if (timeSinceLastFragment <= mergeWindow && pendingFragmentsRef.current.length > 0) {
-        shouldMerge = true;
-        // Объединяем все фрагменты из буфера с текущим текстом
-        const previousTexts = pendingFragmentsRef.current.map(f => f.text).join(' ');
-        finalText = `${previousTexts} ${finalText}`.trim();
-        
-        console.log('[MERGE:merge] Объединение фрагментов', {
-          previousFragments: pendingFragmentsRef.current.length,
-          previousTexts,
-          currentText: transcribedText,
-          finalText,
-          timeSinceLastFragment: `${timeSinceLastFragment}ms`,
-          mergeWindow: `${mergeWindow}ms`,
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        // Если прошло больше времени или буфер пуст, добавляем текущий фрагмент в буфер
-        const reason = timeSinceLastFragment === Infinity 
-          ? 'first_fragment' 
-          : timeSinceLastFragment > mergeWindow 
-            ? 'timeout' 
-            : 'empty_buffer';
-        
-        pendingFragmentsRef.current.push({
-          text: transcribedText.trim(),
-          timestamp: currentTime,
-        });
-        
-        console.log('[MERGE:buffer] Фрагмент добавлен в буфер', {
-          reason,
-          fragmentText: transcribedText,
-          bufferSize: pendingFragmentsRef.current.length,
-          timeSinceLastFragment: timeSinceLastFragment === Infinity ? 'first' : `${timeSinceLastFragment}ms`,
-          bufferContents: pendingFragmentsRef.current.map((f, i) => ({
-            index: i,
-            text: f.text,
-            age: `${currentTime - f.timestamp}ms`,
-          })),
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // НОВАЯ ПРОВЕРКА: автоматическая отправка при 300+ символов с законченными предложениями
-      // Проверяем после добавления или объединения фрагментов
-      if (!shouldMerge) {
-        // Если не было объединения, проверяем весь буфер (включая только что добавленный фрагмент)
-        // Буфер уже содержит текущий фрагмент, так что просто объединяем все
-        const allFragmentsText = pendingFragmentsRef.current.map(f => f.text).join(' ');
-        const combinedTextForCheck = allFragmentsText.trim();
-        
-        if (shouldAutoTranslate(combinedTextForCheck)) {
-          console.log('[AUTO:translate] Условие автоматической отправки выполнено', {
-            textLength: combinedTextForCheck.length,
-            hasCompleteSentences: hasCompleteSentences(combinedTextForCheck),
-            bufferSize: pendingFragmentsRef.current.length,
-            combinedText: combinedTextForCheck.substring(0, 100) + '...',
-            timestamp: new Date().toISOString(),
-          });
-          
-          // Устанавливаем флаги для автоматической отправки
-          shouldAutoTranslateFlag = true;
-          shouldMerge = true; // Используем существующую логику объединения
-          finalText = combinedTextForCheck;
-          
-          // Очищаем буфер, так как отправляем на перевод
-          console.log('[AUTO:buffer] Очистка буфера после автоматической отправки', {
-            clearedFragments: pendingFragmentsRef.current.length,
-            timestamp: new Date().toISOString(),
-          });
-          pendingFragmentsRef.current = [];
-        }
-      } else {
-        // Если было объединение, проверяем объединенный текст
-        // (это уже будет обработано дальше в коде, но логируем для отладки)
-        if (shouldAutoTranslate(finalText)) {
-          console.log('[AUTO:translate] Условие автоматической отправки выполнено (после объединения)', {
-            textLength: finalText.length,
-            hasCompleteSentences: hasCompleteSentences(finalText),
-            timestamp: new Date().toISOString(),
-          });
-          
-          shouldAutoTranslateFlag = true;
-        }
-      }
-
-      // Обновляем время последнего фрагмента
-      lastFragmentTimeRef.current = currentTime;
-
-      // Логируем финальный текст (после объединения, если было)
-      if (shouldMerge) {
-        console.log('[RECOGNITION] Финальный текст (после объединения фрагментов):');
-        console.log('[RECOGNITION]', finalText);
-        console.log('[RECOGNITION] Длина финального текста:', finalText.length, 'символов');
-      }
-
-      // Определяем messageId и создаем/обновляем сообщение
-      let messageId;
-      
-      if (shouldMerge) {
-        console.log('[MERGE:message] Попытка обновить/создать сообщение для объединенного текста', {
-          finalText,
-          timestamp: new Date().toISOString(),
-        });
-        
-        // Пытаемся обновить последнее сообщение, если оно еще не переведено
-        
-        setMessages((prev) => {
-          if (prev.length === 0) {
-            // Если сообщений нет, создаем новое
-            messageId = Date.now();
-            console.log('[MERGE:message] Создание первого сообщения (буфер был пуст)', {
-              messageId,
-              text: finalText,
-              timestamp: new Date().toISOString(),
-            });
-            const newMessage = {
-              id: messageId,
-              original: finalText,
-              translated: null,
-              timestamp: new Date(),
-            };
-            // Save to session
-            if (sessionIdRef.current) {
-              try {
-                addMessageToSession(sessionIdRef.current, newMessage);
-              } catch (err) {
-                console.error('Error saving message to session:', err);
-              }
-            }
-            return [...prev, newMessage];
-          }
-          
-          const lastMessage = prev[prev.length - 1];
-          const lastMessageAge = currentTime - lastMessage.timestamp.getTime();
-          const mergeWindow = getMergeDelay();
-          
-          console.log('[MERGE:message] Проверка последнего сообщения', {
-            lastMessageId: lastMessage.id,
-            lastMessageText: lastMessage.original,
-            lastMessageHasTranslation: lastMessage.translated !== null,
-            lastMessageAge: `${lastMessageAge}ms`,
-            mergeWindow: `${mergeWindow}ms`,
-            canUpdate: lastMessage.translated === null && lastMessageAge <= mergeWindow,
-            timestamp: new Date().toISOString(),
-          });
-          
-          // Обновляем последнее сообщение, если:
-          // 1. Оно еще не переведено (translated === null)
-          // 2. Оно было создано недавно (в пределах окна объединения)
-          if (lastMessage.translated === null && lastMessageAge <= mergeWindow) {
-            messageId = lastMessage.id;
-            
-            console.log('[MERGE:message] ✓ Обновление последнего сообщения', {
-              messageId: lastMessage.id,
-              oldText: lastMessage.original,
-              newText: finalText,
-              lastMessageAge: `${lastMessageAge}ms`,
-              timestamp: new Date().toISOString(),
-            });
-            
-            // Обновляем последнее сообщение объединенным текстом
-            const updatedMessage = { ...lastMessage, original: finalText };
-            // Update in session
-            if (sessionIdRef.current) {
-              try {
-                // Передаем полное сообщение, чтобы если его нет - создать с правильными данными
-                updateMessageInSession(sessionIdRef.current, messageId, {
-                  original: finalText,
-                  translated: lastMessage.translated,
-                  timestamp: lastMessage.timestamp instanceof Date 
-                    ? lastMessage.timestamp.getTime() 
-                    : lastMessage.timestamp
-                });
-              } catch (err) {
-                console.error('Error updating message in session:', err);
-                // Если обновление не удалось, попробуем добавить сообщение заново
-                try {
-                  addMessageToSession(sessionIdRef.current, updatedMessage);
-                } catch (addErr) {
-                  console.error('Error adding message to session:', addErr);
-                }
-              }
-            }
-            return prev.map((msg, index) => 
-              index === prev.length - 1
-                ? updatedMessage
-                : msg
-            );
-          } else {
-            // Если последнее сообщение уже переведено или прошло много времени,
-            // создаем новое сообщение
-            messageId = Date.now();
-            
-            const reason = lastMessage.translated !== null 
-              ? 'already_translated' 
-              : lastMessageAge > mergeWindow 
-                ? 'too_old' 
-                : 'unknown';
-            
-            console.log('[MERGE:message] ✗ Нельзя обновить последнее сообщение, создаем новое', {
-              reason,
-              lastMessageId: lastMessage.id,
-              hasTranslation: lastMessage.translated !== null,
-              lastMessageAge: `${lastMessageAge}ms`,
-              mergeWindow: `${mergeWindow}ms`,
-              newMessageId: messageId,
-              newText: finalText,
-              timestamp: new Date().toISOString(),
-            });
-            
-            const newMessage = {
-              id: messageId,
-              original: finalText,
-              translated: null,
-              timestamp: new Date(),
-            };
-            // Save to session
-            if (sessionIdRef.current) {
-              try {
-                addMessageToSession(sessionIdRef.current, newMessage);
-              } catch (err) {
-                console.error('Error saving message to session:', err);
-              }
-            }
-            return [...prev, newMessage];
-          }
-        });
-        
-        // Очищаем буфер, так как мы объединили фрагменты
-        console.log('[MERGE:buffer] Очистка буфера после объединения', {
-          clearedFragments: pendingFragmentsRef.current.length,
-          timestamp: new Date().toISOString(),
-        });
-        pendingFragmentsRef.current = [];
-      } else {
-        // Если не объединяем, создаем новое сообщение
-        // Очищаем буфер, так как прошло слишком много времени для объединения
-        const clearedFragments = pendingFragmentsRef.current.length;
-        console.log('[MERGE:buffer] Очистка буфера (слишком много времени прошло)', {
-          clearedFragments,
-          bufferContents: pendingFragmentsRef.current.map((f, i) => ({
-            index: i,
-            text: f.text,
-            age: `${currentTime - f.timestamp}ms`,
-          })),
-          timestamp: new Date().toISOString(),
-        });
-        pendingFragmentsRef.current = [];
-        
-        messageId = Date.now();
-        const newMessage = {
-          id: messageId,
-          original: finalText,
-          translated: null,
-          timestamp: new Date(),
-        };
-        
-        // Save to session
-        if (sessionIdRef.current) {
-          try {
-            addMessageToSession(sessionIdRef.current, newMessage);
-          } catch (err) {
-            console.error('Error saving message to session:', err);
-          }
-        }
-        
-        setMessages((prev) => [...prev, newMessage]);
-        console.log('[MERGE:message] Новое сообщение создано (без объединения)', { 
-          messageId, 
-          original: finalText,
-          reason: 'no_merge',
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // Step 2: Translate text (используем объединенный текст, если было объединение)
-      // Сохраняем информацию о количестве фрагментов для лога
-      const fragmentsCount = shouldMerge 
-        ? (pendingFragmentsRef.current.length > 0 ? pendingFragmentsRef.current.length + 1 : 1)
-        : 1;
-      
-      console.log('[TRANSLATE:start] Начало перевода', { 
-        messageId,
-        model: translationModel,
-        text: finalText,
-        textLength: finalText.length,
-        isMerged: shouldMerge,
-        originalFragments: fragmentsCount,
-        timestamp: new Date().toISOString(),
-      });
-      const translationApiKey = translationModel === 'google' ? google : yandex;
-      const translatedText = await translateText(finalText, translationApiKey, translationModel);
-      console.log('[VAD:processAudio] Перевод завершен', {
-        translatedText,
-        textLength: translatedText.length,
-        model: translationModel,
-      });
-
-      // Явный лог перевода
-      console.log('[TRANSLATION] ========================================');
-      console.log('[TRANSLATION] Оригинальный текст (EN):');
-      console.log('[TRANSLATION]', finalText);
-      console.log('[TRANSLATION] ---');
-      console.log('[TRANSLATION] Переведенный текст (RU):');
-      console.log('[TRANSLATION]', translatedText);
-      console.log('[TRANSLATION] ---');
-      console.log('[TRANSLATION] Модель перевода:', translationModel);
-      console.log('[TRANSLATION] Длина оригинала:', finalText.length, 'символов');
-      console.log('[TRANSLATION] Длина перевода:', translatedText.length, 'символов');
-      console.log('[TRANSLATION] ========================================');
-
-      // Update message with translation
-      const updatedMessage = { translated: translatedText };
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId
-            ? { ...msg, ...updatedMessage }
-            : msg
-        )
-      );
-      
-      // Save translation to session
-      if (sessionIdRef.current) {
-        try {
-          updateMessageInSession(sessionIdRef.current, messageId, updatedMessage);
-        } catch (err) {
-          console.error('Error updating message in session:', err);
-        }
-      }
-      console.log('[TRANSLATE:complete] Сообщение обновлено переводом', { 
-        messageId,
-        original: finalText,
-        translated: translatedText,
-        originalLength: finalText.length,
-        translatedLength: translatedText.length,
-        timestamp: new Date().toISOString(),
-      });
-
-      const processDuration = Date.now() - processStartTime;
-      console.log('[VAD:processAudio] Обработка завершена успешно', {
-        duration: processDuration,
-        durationSeconds: (processDuration / 1000).toFixed(2),
-        timestamp: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.error('[VAD:processAudio] Ошибка обработки', {
-        error: err.message,
-        stack: err.stack,
-        duration: Date.now() - processStartTime,
-        timestamp: new Date().toISOString(),
-      });
-      setError(err.message || 'Ошибка при обработке аудио');
-    } finally {
-      setIsProcessing(false);
-      isProcessingRef.current = false; // Синхронное обновление ref
-      
-      console.log('[SYNC:state] Состояние после setIsProcessing(false)', {
-        isProcessing: isProcessingRef.current,
-        isRecording: isRecordingRef.current,
-        isListening: isListeningRef.current,
-        timestamp: new Date().toISOString(),
-      });
-
-      // Прослушивание уже должно быть перезапущено из onstop обработчика сразу после остановки записи
-      // Но если по какой-то причине не перезапустилось - делаем это здесь
-      if (!isListeningRef.current && !isRecordingRef.current) {
-        setTimeout(() => {
-          safeRestartListening();
-        }, 100);
-      }
-    }
-  };
+  }, [setIsProcessing, isProcessingRef, setError, setMessages, sessionIdRef, textStreamRef, recentSentencesRef, sentenceBufferRef, transcriptionSource, transcriptionWorkerRef, safeRestartListening, isListeningRef, isRecordingRef]);
 
   const handleReset = () => {
     if (messages.length > 0) {
@@ -1526,11 +770,34 @@ function Translator() {
     }
     setMessages([]);
     setError(null);
+    textStreamRef.current = '';
+    recentSentencesRef.current = [];
+  };
+
+  const handleCreateTestMessages = async () => {
+    try {
+      const result = await createTestMessages(sessionId, 10);
+      if (result.success) {
+        // Перезагружаем сообщения из сессии
+        const session = getSession(sessionId);
+        if (session && session.messages) {
+          const loadedMessages = session.messages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+          setMessages(loadedMessages);
+        }
+        console.log('✅ Тестовые сообщения созданы!');
+      }
+    } catch (error) {
+      console.error('Ошибка при создании тестовых сообщений:', error);
+      setError('Не удалось создать тестовые сообщения: ' + error.message);
+    }
   };
 
   const handleDeleteMessage = (messageId) => {
     // Показываем тост с информацией о сообщении
-    const toastId = `${messageId}-${Date.now()}`; // Уникальный ID для тоста
+    const toastId = `${messageId}-${generateMessageId()}`; // Уникальный ID для тоста
     setDeleteToasts((prev) => [
       ...prev,
       {
@@ -1541,25 +808,34 @@ function Translator() {
     ]);
   };
 
-  const handleCompleteDelete = (toastId) => {
+  const handleCompleteDelete = useCallback((toastId) => {
     setDeleteToasts((prev) => {
       const toast = prev.find((t) => t.id === toastId);
-      if (toast) {
-        setMessages((messages) => {
-          const updated = messages.filter((msg) => msg.id !== toast.messageId);
-          // TODO: Remove message from session in localStorage
-          // For now, we'll just remove from UI
-          return updated;
-        });
+      if (toast && toast.messageId && sessionIdRef.current) {
+        try {
+          // Удаляем сообщение из localStorage
+          deleteMessageFromSession(sessionIdRef.current, toast.messageId);
+          
+          // Удаляем сообщение из UI
+          setMessages((messages) => {
+            return messages.filter((msg) => msg.id !== toast.messageId);
+          });
+        } catch (err) {
+          console.error('Ошибка при удалении сообщения из сессии:', err);
+          // Все равно удаляем из UI, даже если не удалось удалить из localStorage
+          setMessages((messages) => {
+            return messages.filter((msg) => msg.id !== toast.messageId);
+          });
+        }
         return prev.filter((t) => t.id !== toastId);
       }
       return prev;
     });
-  };
+  }, []);
 
-  const handleCancelDelete = (toastId) => {
+  const handleCancelDelete = useCallback((toastId) => {
     setDeleteToasts((prev) => prev.filter((t) => t.id !== toastId));
-  };
+  }, []);
 
   // Handle language toggle
   const handleLanguageToggle = () => {
@@ -1766,6 +1042,23 @@ function Translator() {
               <span className="hidden md:inline">API Ключи</span>
             </Button>
 
+            {/* Test Messages Button (Dev only) */}
+            {import.meta.env.DEV && (
+              <button
+                onClick={handleCreateTestMessages}
+                className="w-12 h-12 rounded-full ui-glass-panel-thick flex items-center justify-center transition-all hover:scale-[1.02] active:scale-95 group text-purple-600 hover:text-purple-800"
+                aria-label="Создать тестовые сообщения"
+                title="Создать 10 тестовых сообщений"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="12" y1="18" x2="12" y2="12"/>
+                  <line x1="9" y1="15" x2="15" y2="15"/>
+                </svg>
+              </button>
+            )}
+
             {/* Settings Button - Circular */}
             <button
               onClick={handleSettingsClick}
@@ -1820,8 +1113,18 @@ function Translator() {
 
               {/* Center Translation Area - Mobile */}
               <section className="w-screen flex-shrink-0 flex flex-col gap-5 min-h-0 overflow-visible pt-20 md:pt-0">
-                <div className="flex-1 min-h-0 h-full overflow-y-auto overflow-x-visible scrollbar-hidden pb-0 md:pb-0">
-                  <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} error={error} isRecording={isRecording} />
+                <div 
+                  ref={messagesScrollContainerMobileRef}
+                  className="flex-1 min-h-0 h-full overflow-y-auto overflow-x-visible scrollbar-hidden pb-0 md:pb-0"
+                >
+                  <MessageFeed
+                    messages={messages}
+                    onDeleteMessage={handleDeleteMessage}
+                    error={error}
+                    isRecording={isRecording}
+                    sentencesOnScreen={sentencesOnScreen}
+                    showOriginal={showOriginal}
+                  />
                 </div>
               </section>
 
@@ -1850,8 +1153,18 @@ function Translator() {
             <section className={`md:col-span-9 flex flex-col gap-5 min-h-0 overflow-visible transition-all duration-300 ${
               isSettingsSidebarOpen ? 'lg:col-span-6' : 'lg:col-span-9'
             }`}>
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hidden pb-0">
-                <MessageFeed messages={messages} onDeleteMessage={handleDeleteMessage} error={error} isRecording={isRecording} />
+              <div 
+                ref={messagesScrollContainerDesktopRef}
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-visible scrollbar-hidden pb-0"
+              >
+                <MessageFeed
+                  messages={messages}
+                  onDeleteMessage={handleDeleteMessage}
+                  error={error}
+                  isRecording={isRecording}
+                  sentencesOnScreen={sentencesOnScreen}
+                  showOriginal={showOriginal}
+                />
               </div>
             </section>
 
@@ -1967,20 +1280,48 @@ function Translator() {
         onClose={() => setDeletingSession(null)}
         session={deletingSession}
         onConfirm={() => {
-          if (deletingSession) {
-            try {
-              deleteSession(deletingSession.id);
-              // Если удалили текущую сессию, перенаправляем на главную
-              if (deletingSession.id === sessionId) {
-                navigate('/');
-              } else {
-                // Обновляем список сессий
-                setDeletingSession(null);
-              }
-            } catch (err) {
-              console.error('Ошибка при удалении сессии:', err);
-              setError(err.message || 'Ошибка при удалении сессии');
+          if (!deletingSession) {
+            setDeletingSession(null);
+            return;
+          }
+
+          const sessionToDelete = deletingSession;
+          const deletedSessionId = sessionToDelete.id;
+          
+          try {
+            // Проверяем, что сессия существует перед удалением
+            const existingSession = getSession(deletedSessionId);
+            if (!existingSession) {
+              throw new Error('Сессия не найдена. Возможно, она уже была удалена.');
+            }
+
+            // Выполняем удаление
+            deleteSession(deletedSessionId);
+            
+            // Если удалили текущую сессию, перенаправляем на главную
+            if (deletedSessionId === sessionId) {
+              // Сбрасываем состояние перед навигацией
               setDeletingSession(null);
+              setError(null);
+              navigate('/');
+            } else {
+              // Обновляем список сессий - закрываем drawer
+              setDeletingSession(null);
+            }
+          } catch (err) {
+            console.error('Ошибка при удалении сессии:', err);
+            const errorMessage = err.message || 'Не удалось удалить сессию. Попробуйте еще раз.';
+            setError(errorMessage);
+            
+            // Показываем ошибку пользователю через toast/alert
+            // Закрываем drawer только если это не критическая ошибка
+            if (err.message?.includes('не найдена') || err.message?.includes('not found')) {
+              // Сессия уже удалена - закрываем drawer
+              setDeletingSession(null);
+              setError(null);
+            } else {
+              // Оставляем drawer открытым, чтобы пользователь мог попробовать снова
+              // или закрыть его вручную
             }
           }
         }}

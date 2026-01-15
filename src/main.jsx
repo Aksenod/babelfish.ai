@@ -12,7 +12,13 @@ const basename = import.meta.env.PROD ? '/babelfish.ai' : '';
 // eslint-disable-next-line react-refresh/only-export-components
 function App() {
   return (
-    <BrowserRouter basename={basename}>
+    <BrowserRouter 
+      basename={basename}
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         <Route path="/" element={<SessionList />} />
         <Route path="/session/:id" element={<Translator />} />

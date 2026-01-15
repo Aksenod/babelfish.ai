@@ -57,6 +57,15 @@ function App({ supabase }) {
   // Broadcast
   const channelId = useRef(randomId());
   const channel = supabase.channel(channelId.current);
+  const messageIdCounterRef = useRef(0); // Счетчик для генерации уникальных ID
+
+  // Генерация уникального ID для сообщений
+  // Использует timestamp + счетчик для гарантии уникальности даже при одновременном создании
+  const generateMessageId = () => {
+    messageIdCounterRef.current += 1;
+    // Используем timestamp + счетчик для уникальности
+    return Date.now() * 1000 + messageIdCounterRef.current;
+  };
 
   // We use the `useEffect` hook to setup the worker as soon as the `App` component is mounted.
   useEffect(() => {
@@ -150,7 +159,7 @@ function App({ supabase }) {
           
           // Add to history immediately
           const newMessage = {
-            id: Date.now(),
+            id: generateMessageId(),
             original: transcribedText,
             translation: null,
             timestamp: new Date(),

@@ -282,6 +282,36 @@ export function updateMessageInSession(sessionId, messageId, updates) {
 }
 
 /**
+ * Удалить сообщение из сессии
+ */
+export function deleteMessageFromSession(sessionId, messageId) {
+  const data = getStorageData();
+  const sessionIndex = data.sessions.findIndex(s => s.id === sessionId);
+
+  if (sessionIndex === -1) {
+    throw new Error('Session not found');
+  }
+
+  const session = data.sessions[sessionIndex];
+  const initialLength = session.messages.length;
+  
+  // Удаляем сообщение по ID
+  session.messages = session.messages.filter(m => m.id !== messageId);
+
+  if (session.messages.length === initialLength) {
+    throw new Error('Message not found in session');
+  }
+
+  session.updatedAt = Date.now();
+  data.sessions[sessionIndex] = session;
+
+  if (saveStorageData(data)) {
+    return true;
+  }
+  throw new Error('Failed to delete message from session');
+}
+
+/**
  * Получить текущую активную сессию ID
  */
 export function getCurrentSessionId() {

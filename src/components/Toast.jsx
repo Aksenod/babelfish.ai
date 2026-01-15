@@ -1,14 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import GlassCard from './ui/GlassCard';
 import Button from './ui/Button';
 
 export default function Toast({ message, onCancel, onComplete, duration = 3000, topOffset = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
   const [timeLeft, setTimeLeft] = useState(duration / 1000);
+  
+  // Используем ref для хранения актуальных функций, чтобы не перезапускать таймер при их изменении
+  const onCompleteRef = useRef(onComplete);
+  const onCancelRef = useRef(onCancel);
+  
+  // Обновляем ref при изменении пропсов, но не перезапускаем таймер
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+    onCancelRef.current = onCancel;
+  }, [onComplete, onCancel]);
 
   useEffect(() => {
     // Анимация появления
     setIsVisible(true);
+    
+    // Инициализируем время заново при монтировании
+    setTimeLeft(duration / 1000);
 
     // Таймер обратного отсчета
     const countdownInterval = setInterval(() => {
@@ -25,7 +38,7 @@ export default function Toast({ message, onCancel, onComplete, duration = 3000, 
     const deleteTimer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => {
-        onComplete();
+        onCompleteRef.current();
       }, 300); // Ждем завершения анимации исчезновения
     }, duration);
 
@@ -33,12 +46,14 @@ export default function Toast({ message, onCancel, onComplete, duration = 3000, 
       clearTimeout(deleteTimer);
       clearInterval(countdownInterval);
     };
-  }, [duration, onComplete]);
+    // Зависимости только от duration, чтобы таймер запускался только при монтировании
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duration]);
 
   const handleCancel = () => {
     setIsVisible(false);
     setTimeout(() => {
-      onCancel();
+      onCancelRef.current();
     }, 300); // Ждем завершения анимации исчезновения
   };
 

@@ -9,7 +9,20 @@ export default defineConfig(({ command, mode }) => {
   return {
     base,
     plugins: [react()],
+    resolve: {
+      // Remove alias - use actual package from node_modules
+      // This allows subpaths like 'onnxruntime-web/wasm' to work correctly
+    },
     server: {
+      cors: true,
+      headers: {
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+      },
+      fs: {
+        // Allow serving files from the project root
+        allow: ['..'],
+      },
       proxy: {
         '/api/yandex-translate': {
           target: 'https://translate.api.cloud.yandex.net',
@@ -23,6 +36,47 @@ export default defineConfig(({ command, mode }) => {
                 proxyReq.setHeader('Authorization', authHeader);
               }
             });
+          },
+        },
+        '/hf': {
+          target: 'https://huggingface.co',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/hf/, ''),
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq) => {
+              proxyReq.setHeader('Accept', 'application/json');
+            });
+          },
+        },
+      },
+    },
+    optimizeDeps: {
+      exclude: ['@xenova/transformers', 'onnxruntime-web'],
+    },
+    worker: {
+      format: 'es',
+      plugins: () => [react()],
+      rollupOptions: {
+        output: {
+          // Ensure WASM files are handled correctly in workers
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
+              return 'assets/[name][extname]';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+        },
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          // Ensure WASM files are handled correctly
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
+              return 'assets/[name][extname]';
+            }
+            return 'assets/[name]-[hash][extname]';
           },
         },
       },
