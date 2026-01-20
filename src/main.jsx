@@ -9,7 +9,12 @@ import './index.css';
 // В разработке используем пустой basename, в продакшене - /babelfish.ai
 const basename = import.meta.env.PROD ? '/babelfish.ai' : '';
 
-// Компонент для перенаправления на главную при перезагрузке страницы
+/**
+ * Компонент для перенаправления на страницу с сессиями при перезагрузке страницы сессии.
+ * Главная страница (/) отображает список сессий (SessionList).
+ * При перезагрузке страницы сессии (/session/:id) перенаправляет на главную,
+ * чтобы предотвратить проблемы с восстановлением состояния сессии.
+ */
 function RedirectToHome() {
   const navigate = useNavigate();
   const currentLocation = useLocation();
@@ -25,7 +30,7 @@ function RedirectToHome() {
     // type === 'navigate' означает прямой переход по ссылке или первый визит - не редиректим
     const isPageReload = navEntry?.type === 'reload';
     
-    // При перезагрузке всегда перенаправляем на главную
+    // При перезагрузке страницы сессии перенаправляем на главную (страницу с сессиями)
     if (isPageReload && currentLocation.pathname !== '/') {
       // Редиректим сразу, без задержки, чтобы предотвратить рендер компонента Translator
       navigate('/', { replace: true });
@@ -48,7 +53,9 @@ function App() {
     >
       <RedirectToHome />
       <Routes>
+        {/* Главная страница - список сессий */}
         <Route path="/" element={<SessionList />} />
+        {/* Страница работы с конкретной сессией */}
         <Route path="/session/:id" element={<Translator />} />
       </Routes>
     </BrowserRouter>

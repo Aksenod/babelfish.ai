@@ -29,7 +29,11 @@ export const getTranslationModel = () => {
 export const getTranscriptionSource = () => {
   const stored = localStorage.getItem('transcription_source');
   // По умолчанию используем локальную модель (работает и в продакшене)
-  return stored || 'local_worker';
+  // Если значение не установлено, возвращаем локальную модель
+  if (!stored) {
+    return 'local_worker';
+  }
+  return stored;
 };
 
 /**

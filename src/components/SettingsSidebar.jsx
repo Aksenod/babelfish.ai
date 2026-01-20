@@ -32,7 +32,11 @@ const InfoIcon = () => (
 
 export default function SettingsSidebar() {
   const [translationModel, setTranslationModel] = useState('yandex');
-  const [transcriptionSource, setTranscriptionSource] = useState('local_worker');
+  const [transcriptionSource, setTranscriptionSource] = useState(() => {
+    // Используем функцию инициализации для правильного дефолта
+    const stored = localStorage.getItem('transcription_source');
+    return stored || 'local_worker';
+  });
   const [sentencesOnScreen, setSentencesOnScreen] = useState(2);
   const [showOriginal, setShowOriginal] = useState(true);
   
