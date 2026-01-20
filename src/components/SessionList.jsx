@@ -13,21 +13,11 @@ export default function SessionList() {
   const [editingSession, setEditingSession] = useState(null);
   const [deletingSession, setDeletingSession] = useState(null);
   const [summarySession, setSummarySession] = useState(null);
-  const [isRedirecting, setIsRedirecting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadSessions();
-    // Автоматическое перенаправление на последнюю сессию при наличии сессий
-    const allSessions = getSessions();
-    if (allSessions.length > 0) {
-      setIsRedirecting(true);
-      // Сортируем по дате обновления и перенаправляем на последнюю
-      const sorted = [...allSessions].sort((a, b) => b.updatedAt - a.updatedAt);
-      const lastSession = sorted[0];
-      navigate(`/session/${lastSession.id}`, { replace: true });
-    }
-  }, [navigate]);
+  }, []);
 
   const loadSessions = () => {
     const allSessions = getSessions();
@@ -106,8 +96,7 @@ export default function SessionList() {
   };
 
   // Если сессий нет, показываем экран создания первой сессии
-  // Если сессии есть, компонент будет перенаправлен на последнюю в useEffect
-  if (sessions.length === 0 && !isRedirecting) {
+  if (sessions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-screen ui-mesh-bg p-4 relative">
         <DecorativeBlurs />
@@ -154,22 +143,6 @@ export default function SessionList() {
       </div>
     );
   }
-
-  // Если есть сессии и идет перенаправление, показываем индикатор загрузки
-  if (isRedirecting) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen ui-mesh-bg p-4 relative">
-        <DecorativeBlurs />
-        <div className="text-center max-w-md">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Перенаправление на последнюю сессию...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Если сессии есть, но перенаправление не произошло, показываем список сессий
-  // (fallback на случай проблем с навигацией)
 
   return (
     <div className="min-h-screen ui-mesh-bg p-4 relative">
