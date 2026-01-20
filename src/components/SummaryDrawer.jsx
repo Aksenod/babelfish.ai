@@ -114,11 +114,7 @@ export default function SummaryDrawer({ isOpen, onClose, session, onSummaryGener
       return;
     }
 
-    const openaiKey = localStorage.getItem('openai_api_key');
-    if (!openaiKey) {
-      setError('OpenAI API ключ не настроен. Откройте настройки и добавьте ключ.');
-      return;
-    }
+    const openaiKey = localStorage.getItem('openai_api_key') || '';
 
     let actualSession = sessionToUse;
     try {

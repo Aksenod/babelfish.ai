@@ -3,21 +3,37 @@
  * Решает проблему CORS в production
  */
 
-export default async function handler(req, res) {
-  // Разрешаем CORS для GitHub Pages домена и localhost для разработки
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://aksenod.github.io',
+  'https://aksenod.github.io/babelfish.ai',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+
+const getAllowedOrigins = () => {
+  const raw = process.env.ALLOWED_ORIGINS || '';
+  const fromEnv = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...fromEnv]);
+};
+
+const applyCors = (req, res) => {
   const origin = req.headers.origin || '';
-  const isGitHubPages = origin.includes('github.io');
-  const isLocalhost = origin.startsWith('http://localhost:');
-  
-  // Разрешаем только GitHub Pages и localhost
-  if (isGitHubPages || isLocalhost) {
+  const allowedOrigins = getAllowedOrigins();
+  if (allowedOrigins.has(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
-    // Fallback на основной домен
-    res.setHeader('Access-Control-Allow-Origin', 'https://aksenod.github.io');
+    res.setHeader('Access-Control-Allow-Origin', DEFAULT_ALLOWED_ORIGINS[0]);
   }
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+};
+
+export default async function handler(req, res) {
+  applyCors(req, res);
 
   // Обработка preflight запроса
   if (req.method === 'OPTIONS') {
@@ -30,11 +46,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { texts, targetLanguageCode, sourceLanguageCode } = req.body;
-    const apiKey = req.headers.authorization?.replace('Api-Key ', '');
+    const { texts, targetLanguageCode, sourceLanguageCode } = req.body || {};
+    const headerKey = req.headers.authorization?.replace('Api-Key ', '');
+    const apiKey = headerKey || process.env.YANDEX_API_KEY;
 
     if (!apiKey) {
-      return res.status(401).json({ error: 'API key is required' });
+      return res.status(401).json({ error: 'YANDEX_API_KEY is not configured' });
     }
 
     if (!texts || !Array.isArray(texts) || texts.length === 0) {

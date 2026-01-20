@@ -102,12 +102,7 @@ export default function SummaryModal({ isOpen, onClose, session, onSummaryGenera
       return;
     }
 
-    // Проверяем наличие OpenAI API ключа
-    const openaiKey = localStorage.getItem('openai_api_key');
-    if (!openaiKey) {
-      setError('OpenAI API ключ не настроен. Откройте настройки и добавьте ключ.');
-      return;
-    }
+    const openaiKey = localStorage.getItem('openai_api_key') || '';
 
     // Загружаем актуальную сессию еще раз перед генерацией, чтобы убедиться, что у нас самые свежие данные
     let actualSession = sessionToUse;

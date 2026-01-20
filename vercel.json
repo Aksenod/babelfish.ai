@@ -2,6 +2,12 @@
   "functions": {
     "api/yandex-translate.js": {
       "maxDuration": 30
+    },
+    "api/openai-transcribe.js": {
+      "maxDuration": 60
+    },
+    "api/openai-summary.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

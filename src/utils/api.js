@@ -2,6 +2,28 @@
  * API utilities for transcription and translation
  */
 
+const getOpenAiTranscribeUrl = (apiKey) => {
+  if (apiKey) {
+    return 'https://api.openai.com/v1/audio/transcriptions';
+  }
+  const proxyUrl = import.meta.env.VITE_OPENAI_TRANSCRIBE_URL;
+  if (proxyUrl) {
+    return proxyUrl;
+  }
+  throw new Error('OpenAI API key is required or VITE_OPENAI_TRANSCRIBE_URL is not configured');
+};
+
+const getOpenAiSummaryUrl = (apiKey) => {
+  if (apiKey) {
+    return 'https://api.openai.com/v1/chat/completions';
+  }
+  const proxyUrl = import.meta.env.VITE_OPENAI_SUMMARY_URL;
+  if (proxyUrl) {
+    return proxyUrl;
+  }
+  throw new Error('OpenAI API key is required or VITE_OPENAI_SUMMARY_URL is not configured');
+};
+
 /**
  * Transcribe audio using OpenAI Whisper API
  * @param {Blob} audioBlob - Audio blob to transcribe
@@ -9,10 +31,6 @@
  * @returns {Promise<string>} Transcribed text
  */
 export async function transcribeAudio(audioBlob, apiKey) {
-  if (!apiKey) {
-    throw new Error('OpenAI API key is required');
-  }
-
   const blobSize = audioBlob.size;
   const startTime = Date.now();
   
@@ -50,11 +68,11 @@ export async function transcribeAudio(audioBlob, apiKey) {
   formData.append('language', 'en');
 
   try {
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const apiUrl = getOpenAiTranscribeUrl(apiKey);
+    const headers = apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {};
+    const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      headers,
       body: formData,
     });
 
@@ -187,10 +205,6 @@ export async function translateTextGoogle(text, apiKey) {
  * @returns {Promise<string>} Translated text
  */
 export async function translateTextYandex(text, apiKey) {
-  if (!apiKey) {
-    throw new Error('Yandex API key is required');
-  }
-
   if (!text || text.trim().length === 0) {
     console.log('[API:translate:yandex] Пропуск перевода - пустой текст');
     return '';
@@ -208,10 +222,19 @@ export async function translateTextYandex(text, apiKey) {
   // VITE_YANDEX_PROXY_URL должен быть задан в .env файле для production
   // Например: VITE_YANDEX_PROXY_URL=https://your-proxy.vercel.app/api/yandex-translate
   const proxyUrl = import.meta.env.VITE_YANDEX_PROXY_URL;
-  
-  const apiUrl = isDev 
-    ? '/api/yandex-translate'
-    : proxyUrl || 'https://translate.api.cloud.yandex.net/translate/v2/translate';
+
+  let apiUrl;
+  if (!apiKey) {
+    apiUrl = proxyUrl;
+  } else {
+    apiUrl = isDev
+      ? '/api/yandex-translate'
+      : proxyUrl || 'https://translate.api.cloud.yandex.net/translate/v2/translate';
+  }
+
+  if (!apiUrl) {
+    throw new Error('Yandex API key is required or VITE_YANDEX_PROXY_URL is not configured');
+  }
 
   const requestBody = {
     texts: [text],
@@ -223,7 +246,7 @@ export async function translateTextYandex(text, apiKey) {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Api-Key ${apiKey}`,
+        ...(apiKey ? { 'Authorization': `Api-Key ${apiKey}` } : {}),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
@@ -401,12 +424,18 @@ async function generateSummaryForChunk(messages, context, apiKey, customPrompt, 
     }
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const apiUrl = getOpenAiSummaryUrl(apiKey);
+  const headers = apiKey
+    ? {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      }
+    : {
+        'Content-Type': 'application/json',
+      };
+  const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       model: 'gpt-4o',
       messages: [
@@ -444,13 +473,19 @@ async function generateSummaryForChunk(messages, context, apiKey, customPrompt, 
  * @returns {Promise<string>} Generated summary
  */
 export async function generateSummary(messages, context, apiKey, customPrompt = null) {
-  if (!apiKey) {
-    throw new Error('OpenAI API key is required');
-  }
-
   if (!messages || messages.length === 0) {
     throw new Error('Messages are required for summary generation');
   }
+
+  const apiUrl = getOpenAiSummaryUrl(apiKey);
+  const headers = apiKey
+    ? {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      }
+    : {
+        'Content-Type': 'application/json',
+      };
 
   const startTime = Date.now();
   console.log('[API:summary] Начало генерации саммари', {
@@ -563,12 +598,9 @@ export async function generateSummary(messages, context, apiKey, customPrompt = 
         finalPromptFull += `Учитывай указанный контекст: ${context.trim()}`;
       }
 
-      const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      const finalResponse = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           model: 'gpt-4o',
           messages: [
