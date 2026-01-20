@@ -2,7 +2,7 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Translator from './routes/translator';
-import SessionList from './components/SessionList';
+import SessionsPage from './components/SessionsPage';
 import './index.css';
 
 // Определяем basename в зависимости от режима
@@ -11,7 +11,7 @@ const basename = import.meta.env.PROD ? '/babelfish.ai' : '';
 
 /**
  * Компонент для перенаправления на страницу с сессиями при перезагрузке страницы сессии.
- * Главная страница (/) отображает список сессий (SessionList).
+ * Главная страница (/) отображает список сессий (SessionsPage).
  * При перезагрузке страницы сессии (/session/:id) перенаправляет на главную,
  * чтобы предотвратить проблемы с восстановлением состояния сессии.
  * 
@@ -83,7 +83,7 @@ function App() {
       <RedirectToHome />
       <Routes>
         {/* Главная страница - список сессий */}
-        <Route path="/" element={<SessionList />} />
+        <Route path="/" element={<SessionsPage />} />
         {/* Страница работы с конкретной сессией */}
         <Route path="/session/:id" element={<Translator />} />
       </Routes>
