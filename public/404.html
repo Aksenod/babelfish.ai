@@ -7,15 +7,17 @@
       // GitHub Pages SPA redirect
       // Сохраняем путь и перенаправляем на главную
       // Скрипт в index.html восстановит маршрут
-      const pathSegmentsToKeep = 1; // /babelfish.ai — оставляем 1 сегмент базового пути
-      const location = window.location;
-      const redirect = location.origin + location.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + 
-        '/?p=' + encodeURIComponent(
-          location.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/') + 
-          location.search + 
-          location.hash
-        );
-      location.replace(redirect);
+      (function() {
+        const pathSegmentsToKeep = 1; // /babelfish.ai — оставляем 1 сегмент базового пути
+        const currentLocation = window.location;
+        const redirect = currentLocation.origin + currentLocation.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + 
+          '/?p=' + encodeURIComponent(
+            currentLocation.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/') + 
+            currentLocation.search + 
+            currentLocation.hash
+          );
+        currentLocation.replace(redirect);
+      })();
     </script>
   </head>
   <body>

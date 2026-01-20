@@ -12,25 +12,32 @@ const basename = import.meta.env.PROD ? '/babelfish.ai' : '';
 // Компонент для перенаправления на главную при перезагрузке страницы
 function RedirectToHome() {
   const navigate = useNavigate();
-  const location = useLocation();
+  const currentLocation = useLocation();
 
-  React.useEffect(() => {
+  // Используем useLayoutEffect для синхронного редиректа до рендера
+  // Это предотвращает черный экран при перезагрузке страницы сессии
+  React.useLayoutEffect(() => {
     // Проверяем, была ли это перезагрузка страницы через Navigation Timing API
     const navigationEntries = performance.getEntriesByType('navigation');
-    const isPageReload = navigationEntries.length > 0 && 
-      navigationEntries[0].type === 'reload';
+    const navEntry = navigationEntries.length > 0 ? navigationEntries[0] : null;
+    
+    // Определяем перезагрузку: только если type === 'reload'
+    // type === 'navigate' означает прямой переход по ссылке или первый визит - не редиректим
+    const isPageReload = navEntry?.type === 'reload';
     
     // При перезагрузке всегда перенаправляем на главную
-    if (isPageReload && location.pathname !== '/') {
+    if (isPageReload && currentLocation.pathname !== '/') {
+      // Редиректим сразу, без задержки, чтобы предотвратить рендер компонента Translator
       navigate('/', { replace: true });
     }
-  }, []); // Пустой массив зависимостей - выполняется только при монтировании
+  }, [navigate, currentLocation.pathname]);
 
   return null;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 function App() {
+
   return (
     <BrowserRouter 
       basename={basename}
