@@ -220,14 +220,16 @@ export default function SessionsPage() {
               <div
                 key={session.id}
                 onClick={(e) => {
-                  // Проверяем, что клик не был по кнопке или интерактивному элементу
+                  // Проверяем, что клик не был по кнопке
                   const target = e.target;
                   const clickedButton = target.closest('button');
-                  const clickedInteractive = target.closest('[role="button"]');
                   
-                  // Если клик был по кнопке или интерактивному элементу, не обрабатываем
-                  if (!clickedButton && !clickedInteractive) {
+                  // Если клик был по кнопке, не обрабатываем здесь (кнопка сама обработает)
+                  if (!clickedButton) {
+                    console.log('Card clicked, opening session:', session.id);
                     handleOpenSession(session.id, e);
+                  } else {
+                    console.log('Button clicked, ignoring card click');
                   }
                 }}
                 onTouchEnd={(e) => {
@@ -239,6 +241,7 @@ export default function SessionsPage() {
                   // Если клик был по кнопке, не обрабатываем здесь (кнопка сама обработает)
                   if (!clickedButton) {
                     e.preventDefault();
+                    console.log('Touch on card, opening session:', session.id);
                     handleOpenSession(session.id, e);
                   }
                 }}
@@ -248,6 +251,7 @@ export default function SessionsPage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
+                    console.log('Key pressed, opening session:', session.id);
                     handleOpenSession(session.id);
                   }
                 }}

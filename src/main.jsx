@@ -41,6 +41,7 @@ function RedirectToHome() {
         const navEntry = navigationEntries[0];
         // type === 'reload' означает перезагрузку страницы (F5, Cmd+R)
         // type === 'navigate' означает прямой переход по ссылке или первый визит
+        // type === 'back_forward' означает переход назад/вперед
         isPageReload = navEntry.type === 'reload';
       }
     } catch (e) {
@@ -50,16 +51,20 @@ function RedirectToHome() {
       }
     }
     
-    // Редиректим только при перезагрузке страницы сессии
-    // Не редиректим на главной странице и при программной навигации
+    // Редиректим ТОЛЬКО при перезагрузке страницы сессии
+    // НЕ редиректим при программной навигации через navigate()
     if (isPageReload && currentLocation.pathname !== '/') {
+      console.log('Page reload detected, redirecting to home from:', currentLocation.pathname);
       hasRedirectedRef.current = true;
       // Редиректим сразу, без задержки, чтобы предотвратить рендер компонента Translator
       navigate('/', { replace: true });
+    } else {
+      // Сбрасываем флаг при нормальной навигации
+      hasRedirectedRef.current = false;
     }
   }, [navigate, currentLocation.pathname]);
 
-  // Сбрасываем флаг при изменении пути (но не при первой загрузке)
+  // Сбрасываем флаг при переходе на главную страницу
   React.useEffect(() => {
     if (currentLocation.pathname === '/') {
       hasRedirectedRef.current = false;
