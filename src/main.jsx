@@ -22,10 +22,20 @@ function RedirectToHome() {
   const navigate = useNavigate();
   const currentLocation = useLocation();
   const hasRedirectedRef = React.useRef(false);
+  const isInitialMountRef = React.useRef(true);
 
   // Используем useLayoutEffect для синхронного редиректа до рендера
   // Это предотвращает черный экран при перезагрузке страницы сессии
   React.useLayoutEffect(() => {
+    // При первом монтировании проверяем только один раз
+    if (!isInitialMountRef.current) {
+      // При последующих изменениях пути не выполняем редирект
+      // Это означает, что навигация была программной
+      return;
+    }
+    
+    isInitialMountRef.current = false;
+    
     // Предотвращаем повторные редиректы
     if (hasRedirectedRef.current) {
       return;
@@ -58,9 +68,6 @@ function RedirectToHome() {
       hasRedirectedRef.current = true;
       // Редиректим сразу, без задержки, чтобы предотвратить рендер компонента Translator
       navigate('/', { replace: true });
-    } else {
-      // Сбрасываем флаг при нормальной навигации
-      hasRedirectedRef.current = false;
     }
   }, [navigate, currentLocation.pathname]);
 
@@ -68,6 +75,9 @@ function RedirectToHome() {
   React.useEffect(() => {
     if (currentLocation.pathname === '/') {
       hasRedirectedRef.current = false;
+      // Сбрасываем флаг монтирования при переходе на главную
+      // Это позволит снова проверить при следующей загрузке страницы сессии
+      isInitialMountRef.current = true;
     }
   }, [currentLocation.pathname]);
 
