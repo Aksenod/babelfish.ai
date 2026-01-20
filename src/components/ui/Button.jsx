@@ -10,13 +10,14 @@ const Button = forwardRef(({
   disabled = false,
   ...props
 }, ref) => {
-  // Size mappings
-  const sizeClasses = {
-    sm: 'h-8 px-3 text-xs w-8',
-    md: 'h-10 px-5 text-sm w-10',
-    lg: 'h-12 px-6 text-base w-12',
+  // Size mappings for text buttons (without fixed width)
+  const textSizeClasses = {
+    sm: 'h-8 px-3 text-xs',
+    md: 'h-10 px-5 text-sm',
+    lg: 'h-12 px-6 text-base',
   };
   
+  // Size mappings for icon buttons (with fixed width)
   const iconSizeClasses = {
     sm: 'h-8 w-8 px-3 text-xs',
     md: 'h-10 w-10 px-5 text-sm',
@@ -35,8 +36,8 @@ const Button = forwardRef(({
 
   // Variant-specific classes
   const variantClasses = {
-    pill: `ui-glass-panel-thick rounded-full text-slate-800 hover:text-slate-900 transition-all hover:scale-[1.02] active:scale-95 group flex items-center justify-center ${sizeClasses[size]}`,
-    floating: `rounded-full ${colorClasses[color]} transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold ${sizeClasses[size]}`,
+    pill: `ui-glass-panel-thick rounded-full text-slate-800 hover:text-slate-900 transition-all hover:scale-[1.02] active:scale-95 group flex items-center justify-center ${textSizeClasses[size]}`,
+    floating: `rounded-full ${colorClasses[color]} transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold ${textSizeClasses[size]}`,
     icon: `rounded-full ${colorClasses[color]} transition-all duration-200 ease-out active:scale-95 flex items-center justify-center ${iconSizeClasses[size]}`,
   };
 
