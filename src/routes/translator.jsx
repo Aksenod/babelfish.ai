@@ -1194,7 +1194,7 @@ function Translator() {
                 <div className={`absolute inset-0 rounded-full ${statusInfo.color} animate-ping opacity-60`}></div>
               )}
             </div>
-            <span className="text-xs font-bold text-white tracking-wide drop-shadow-sm">{statusInfo.text}</span>
+            <span className="hidden md:inline text-xs font-bold text-white tracking-wide drop-shadow-sm">{statusInfo.text}</span>
           </div>
 
           {/* Action Buttons */}
@@ -1202,40 +1202,45 @@ function Translator() {
             {isRecording && (
               <button
                 onClick={handleForceTranslate}
-                className="h-10 px-5 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
+                className="h-10 px-3 md:px-5 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
                 aria-label="Принудительно перевести текущую фразу"
               >
-                <span className="text-xs font-bold uppercase tracking-wide">Перевести</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="md:hidden">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span className="hidden md:inline text-xs font-bold uppercase tracking-wide">Перевести</span>
               </button>
             )}
             {sessionState === 'idle' && (
               <button
                 onClick={handleStartSession}
-                className="group h-10 px-6 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
+                className="group h-10 px-3 md:px-6 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
                 aria-label="Запустить сессию"
               >
                 <PlayIcon />
-                <span className="text-xs font-bold uppercase tracking-wide">Старт</span>
+                <span className="hidden md:inline text-xs font-bold uppercase tracking-wide">Старт</span>
               </button>
             )}
             {sessionState === 'active' && (
               <button
                 onClick={handleStopSession}
-                className="group h-10 px-6 rounded-full bg-amber-500 hover:bg-amber-600 text-white border border-amber-400/50 shadow-lg hover:shadow-amber-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
+                className="group h-10 px-3 md:px-6 rounded-full bg-amber-500 hover:bg-amber-600 text-white border border-amber-400/50 shadow-lg hover:shadow-amber-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
                 aria-label="Остановить сессию"
               >
                 <PauseIcon />
-                <span className="text-xs font-bold uppercase tracking-wide">Пауза</span>
+                <span className="hidden md:inline text-xs font-bold uppercase tracking-wide">Пауза</span>
               </button>
             )}
             {sessionState === 'stopped' && (
               <button
                 onClick={handleStartSession}
-                className="group h-10 px-6 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
+                className="group h-10 px-3 md:px-6 rounded-full bg-blue-500 hover:bg-blue-600 text-white border border-blue-400/50 shadow-lg hover:shadow-blue-500/30 transition-all duration-200 ease-out active:scale-95 flex items-center gap-2 font-semibold"
                 aria-label="Запустить сессию снова"
               >
                 <PlayIcon />
-                <span className="text-xs font-bold uppercase tracking-wide">Продолжить</span>
+                <span className="hidden md:inline text-xs font-bold uppercase tracking-wide">Продолжить</span>
               </button>
             )}
           </div>
