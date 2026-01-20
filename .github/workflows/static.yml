@@ -35,6 +35,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_YANDEX_PROXY_URL: ${{ secrets.VITE_YANDEX_PROXY_URL }}
+          VITE_OPENAI_TRANSCRIBE_URL: ${{ secrets.VITE_OPENAI_TRANSCRIBE_URL }}
+          VITE_OPENAI_SUMMARY_URL: ${{ secrets.VITE_OPENAI_SUMMARY_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
