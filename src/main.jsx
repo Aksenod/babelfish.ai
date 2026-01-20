@@ -14,28 +14,57 @@ const basename = import.meta.env.PROD ? '/babelfish.ai' : '';
  * Главная страница (/) отображает список сессий (SessionList).
  * При перезагрузке страницы сессии (/session/:id) перенаправляет на главную,
  * чтобы предотвратить проблемы с восстановлением состояния сессии.
+ * 
+ * Редирект происходит только при настоящей перезагрузке страницы (F5/Cmd+R),
+ * но не при программной навигации через React Router.
  */
 function RedirectToHome() {
   const navigate = useNavigate();
   const currentLocation = useLocation();
+  const hasRedirectedRef = React.useRef(false);
 
   // Используем useLayoutEffect для синхронного редиректа до рендера
   // Это предотвращает черный экран при перезагрузке страницы сессии
   React.useLayoutEffect(() => {
+    // Предотвращаем повторные редиректы
+    if (hasRedirectedRef.current) {
+      return;
+    }
+
     // Проверяем, была ли это перезагрузка страницы через Navigation Timing API
-    const navigationEntries = performance.getEntriesByType('navigation');
-    const navEntry = navigationEntries.length > 0 ? navigationEntries[0] : null;
+    // Используем более надежный метод проверки
+    let isPageReload = false;
     
-    // Определяем перезагрузку: только если type === 'reload'
-    // type === 'navigate' означает прямой переход по ссылке или первый визит - не редиректим
-    const isPageReload = navEntry?.type === 'reload';
+    try {
+      const navigationEntries = performance.getEntriesByType('navigation');
+      if (navigationEntries.length > 0) {
+        const navEntry = navigationEntries[0];
+        // type === 'reload' означает перезагрузку страницы (F5, Cmd+R)
+        // type === 'navigate' означает прямой переход по ссылке или первый визит
+        isPageReload = navEntry.type === 'reload';
+      }
+    } catch (e) {
+      // Fallback для старых браузеров
+      if (window.performance && window.performance.navigation) {
+        isPageReload = window.performance.navigation.type === 1; // TYPE_RELOAD
+      }
+    }
     
-    // При перезагрузке страницы сессии перенаправляем на главную (страницу с сессиями)
+    // Редиректим только при перезагрузке страницы сессии
+    // Не редиректим на главной странице и при программной навигации
     if (isPageReload && currentLocation.pathname !== '/') {
+      hasRedirectedRef.current = true;
       // Редиректим сразу, без задержки, чтобы предотвратить рендер компонента Translator
       navigate('/', { replace: true });
     }
   }, [navigate, currentLocation.pathname]);
+
+  // Сбрасываем флаг при изменении пути (но не при первой загрузке)
+  React.useEffect(() => {
+    if (currentLocation.pathname === '/') {
+      hasRedirectedRef.current = false;
+    }
+  }, [currentLocation.pathname]);
 
   return null;
 }

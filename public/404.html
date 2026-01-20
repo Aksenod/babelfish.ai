@@ -5,17 +5,27 @@
     <title>Babelfish.ai</title>
     <script>
       // GitHub Pages SPA redirect
-      // Сохраняем путь и перенаправляем на главную
-      // Скрипт в index.html восстановит маршрут
+      // Когда GitHub Pages не находит страницу (например, /babelfish.ai/session/123),
+      // этот скрипт перенаправляет на главную страницу с параметром ?p=, содержащим исходный путь
+      // Скрипт в index.html затем восстановит правильный путь для React Router
       (function() {
-        const pathSegmentsToKeep = 1; // /babelfish.ai — оставляем 1 сегмент базового пути
+        const pathSegmentsToKeep = 1; // /babelfish.ai — оставляем 1 сегмент базового пути (basename)
         const currentLocation = window.location;
-        const redirect = currentLocation.origin + currentLocation.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + 
+        
+        // Извлекаем путь после basename (например, "session/123" из "/babelfish.ai/session/123")
+        const pathAfterBase = currentLocation.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/');
+        
+        // Формируем базовый путь (например, "/babelfish.ai")
+        const basePath = currentLocation.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/');
+        
+        // Перенаправляем на главную с параметром ?p=, содержащим исходный путь
+        const redirect = currentLocation.origin + basePath + 
           '/?p=' + encodeURIComponent(
-            currentLocation.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/') + 
+            pathAfterBase + 
             currentLocation.search + 
             currentLocation.hash
           );
+        
         currentLocation.replace(redirect);
       })();
     </script>
