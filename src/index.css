@@ -63,6 +63,11 @@
     overflow-y: auto;
     overflow-x: clip;
   }
+
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 /* Custom Liquid Glass Styles */

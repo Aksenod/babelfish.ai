@@ -175,8 +175,19 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
               <div
                 key={session.id}
                 onClick={() => handleOpenSession(session.id)}
+                onTouchEnd={(e) => {
+                  // Обработка touch событий для мобильных устройств
+                  // Проверяем, что это не клик по кнопке внутри
+                  const target = e.target;
+                  const clickedButton = target.closest('button');
+                  // Если клик был по кнопке, не обрабатываем здесь (кнопка сама обработает)
+                  if (!clickedButton) {
+                    e.preventDefault();
+                    handleOpenSession(session.id);
+                  }
+                }}
                 className={`
-                  group relative p-2.5 rounded-xl cursor-pointer transition-all
+                  group relative p-2.5 rounded-xl cursor-pointer transition-all touch-manipulation
                   ${isActive 
                     ? 'bg-blue-50 border-2 border-blue-400 shadow-sm' 
                     : 'bg-white/50 border border-slate-200 hover:bg-white/80 hover:border-slate-300'
@@ -191,6 +202,7 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
                   }
                 }}
                 aria-label={`Открыть сессию ${session.name}`}
+                style={{ touchAction: 'manipulation' }}
               >
                 {/* Active Indicator */}
                 {isActive && (
@@ -241,7 +253,13 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
                   {session.messages?.length > 0 && (
                     <button
                       onClick={(e) => handleSummarySession(e, session)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      onTouchEnd={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleSummarySession(e, session);
+                      }}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-purple-600 hover:bg-purple-50 active:bg-purple-100 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 touch-manipulation"
+                      style={{ touchAction: 'manipulation' }}
                       aria-label={`${session.summary ? 'Просмотреть' : 'Создать'} саммари`}
                       title={session.summary ? 'Просмотреть саммари' : 'Создать саммари'}
                     >
@@ -250,7 +268,13 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
                   )}
                   <button
                     onClick={(e) => handleEditSession(e, session)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleEditSession(e, session);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation"
+                    style={{ touchAction: 'manipulation' }}
                     aria-label="Редактировать сессию"
                     title="Редактировать"
                   >
@@ -258,7 +282,13 @@ export default function SessionHistory({ currentSessionId, onEditSession, onDele
                   </button>
                   <button
                     onClick={(e) => handleDeleteSession(e, session)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleDeleteSession(e, session);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation"
+                    style={{ touchAction: 'manipulation' }}
                     aria-label="Удалить сессию"
                     title="Удалить"
                   >

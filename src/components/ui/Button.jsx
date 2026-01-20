@@ -41,7 +41,7 @@ const Button = forwardRef(({
     icon: `rounded-full ${colorClasses[color]} transition-all duration-200 ease-out active:scale-95 flex items-center justify-center ${iconSizeClasses[size]}`,
   };
 
-  const baseClasses = 'focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed';
+  const baseClasses = 'focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation';
   const classes = `${variantClasses[variant]} ${baseClasses} ${className}`.trim();
 
   if (variant === 'pill') {

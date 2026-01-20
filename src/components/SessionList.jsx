@@ -175,8 +175,19 @@ export default function SessionList() {
           {sessions.map((session) => (
             <div
               key={session.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer touch-manipulation"
               onClick={() => handleOpenSession(session.id)}
+              onTouchEnd={(e) => {
+                // Обработка touch событий для мобильных устройств
+                // Проверяем, что это не клик по кнопке внутри
+                const target = e.target;
+                const clickedButton = target.closest('button');
+                // Если клик был по кнопке, не обрабатываем здесь (кнопка сама обработает)
+                if (!clickedButton) {
+                  e.preventDefault();
+                  handleOpenSession(session.id);
+                }
+              }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -186,6 +197,7 @@ export default function SessionList() {
                 }
               }}
               aria-label={`Открыть сессию ${session.name}`}
+              style={{ touchAction: 'manipulation' }}
             >
               <div className="flex justify-between items-start mb-3">
                 <h3 className="text-lg font-semibold text-gray-800 truncate flex-1 mr-2">
@@ -195,7 +207,13 @@ export default function SessionList() {
                   {session.messages?.length > 0 && (
                     <button
                       onClick={(e) => handleSummarySession(e, session)}
-                      className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      onTouchEnd={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleSummarySession(e, session);
+                      }}
+                      className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 active:bg-purple-100 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 touch-manipulation"
+                      style={{ touchAction: 'manipulation' }}
                       aria-label={`${session.summary ? 'Просмотреть' : 'Создать'} саммари для сессии ${session.name}`}
                       title={session.summary ? 'Просмотреть саммари' : 'Создать саммари'}
                     >
@@ -206,7 +224,13 @@ export default function SessionList() {
                   )}
                   <button
                     onClick={(e) => handleEditSession(e, session)}
-                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleEditSession(e, session);
+                    }}
+                    className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 active:bg-blue-100 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation"
+                    style={{ touchAction: 'manipulation' }}
                     aria-label={`Редактировать сессию ${session.name}`}
                     title="Редактировать"
                   >
@@ -216,7 +240,13 @@ export default function SessionList() {
                   </button>
                   <button
                     onClick={(e) => handleDeleteSession(e, session)}
-                    className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleDeleteSession(e, session);
+                    }}
+                    className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 active:bg-red-100 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation"
+                    style={{ touchAction: 'manipulation' }}
                     aria-label={`Удалить сессию ${session.name}`}
                     title="Удалить"
                   >
@@ -242,9 +272,15 @@ export default function SessionList() {
                 </div>
                 {session.summary && (
                   <div 
-                    className="mt-2 pt-2 border-t border-gray-200 cursor-pointer hover:bg-gray-50 rounded p-2 -m-2 transition-colors"
+                    className="mt-2 pt-2 border-t border-gray-200 cursor-pointer hover:bg-gray-50 active:bg-gray-100 rounded p-2 -m-2 transition-colors touch-manipulation"
+                    style={{ touchAction: 'manipulation' }}
                     onClick={(e) => {
                       e.stopPropagation();
+                      handleSummarySession(e, session);
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                       handleSummarySession(e, session);
                     }}
                     title="Нажмите, чтобы открыть полное саммари"
@@ -267,7 +303,13 @@ export default function SessionList() {
                       e.stopPropagation();
                       handleSummarySession(e, session);
                     }}
-                    className="w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors font-medium flex items-center justify-center gap-2"
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleSummarySession(e, session);
+                    }}
+                    className="w-full px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 active:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors font-medium flex items-center justify-center gap-2 touch-manipulation"
+                    style={{ touchAction: 'manipulation' }}
                     aria-label={`Создать саммари для сессии ${session.name}`}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -281,8 +323,14 @@ export default function SessionList() {
                     e.stopPropagation();
                     handleOpenSession(session.id);
                   }}
-                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors font-medium"
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleOpenSession(session.id);
+                  }}
+                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 active:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors font-medium touch-manipulation"
                   aria-label={`Открыть сессию ${session.name}`}
+                  style={{ touchAction: 'manipulation' }}
                 >
                   Открыть
                 </button>
