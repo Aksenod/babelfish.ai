@@ -21,28 +21,34 @@ const basename = import.meta.env.PROD ? '/babelfish.ai' : '';
 function RedirectToHome() {
   const navigate = useNavigate();
   const currentLocation = useLocation();
-  const hasRedirectedRef = React.useRef(false);
-  const isInitialMountRef = React.useRef(true);
+  const hasCheckedRef = React.useRef(false);
+  const previousPathRef = React.useRef(null);
 
   // Используем useLayoutEffect для синхронного редиректа до рендера
   // Это предотвращает черный экран при перезагрузке страницы сессии
   React.useLayoutEffect(() => {
-    // При первом монтировании проверяем только один раз
-    if (!isInitialMountRef.current) {
-      // При последующих изменениях пути не выполняем редирект
-      // Это означает, что навигация была программной
-      return;
-    }
+    // Отслеживаем предыдущий путь для определения программной навигации
+    const previousPath = previousPathRef.current;
+    const currentPath = currentLocation.pathname;
     
-    isInitialMountRef.current = false;
-    
-    // Предотвращаем повторные редиректы
-    if (hasRedirectedRef.current) {
+    // Если путь изменился программно (не перезагрузка), не редиректим
+    if (previousPath !== null && previousPath !== currentPath) {
+      console.log('Programmatic navigation detected, path changed from', previousPath, 'to', currentPath);
+      previousPathRef.current = currentPath;
       return;
     }
 
+    // Обновляем предыдущий путь
+    previousPathRef.current = currentPath;
+
+    // Проверяем только один раз при первой загрузке приложения
+    if (hasCheckedRef.current) {
+      return;
+    }
+    
+    hasCheckedRef.current = true;
+
     // Проверяем, была ли это перезагрузка страницы через Navigation Timing API
-    // Используем более надежный метод проверки
     let isPageReload = false;
     
     try {
@@ -53,33 +59,27 @@ function RedirectToHome() {
         // type === 'navigate' означает прямой переход по ссылке или первый визит
         // type === 'back_forward' означает переход назад/вперед
         isPageReload = navEntry.type === 'reload';
+        
+        console.log('Navigation type:', navEntry.type, 'isPageReload:', isPageReload);
       }
     } catch (e) {
+      console.error('Error checking navigation:', e);
       // Fallback для старых браузеров
       if (window.performance && window.performance.navigation) {
         isPageReload = window.performance.navigation.type === 1; // TYPE_RELOAD
       }
     }
     
-    // Редиректим ТОЛЬКО при перезагрузке страницы сессии
+    // Редиректим ТОЛЬКО при реальной перезагрузке страницы сессии
     // НЕ редиректим при программной навигации через navigate()
     if (isPageReload && currentLocation.pathname !== '/') {
       console.log('Page reload detected, redirecting to home from:', currentLocation.pathname);
-      hasRedirectedRef.current = true;
       // Редиректим сразу, без задержки, чтобы предотвратить рендер компонента Translator
       navigate('/', { replace: true });
+    } else {
+      console.log('No redirect needed, isPageReload:', isPageReload, 'path:', currentLocation.pathname);
     }
   }, [navigate, currentLocation.pathname]);
-
-  // Сбрасываем флаг при переходе на главную страницу
-  React.useEffect(() => {
-    if (currentLocation.pathname === '/') {
-      hasRedirectedRef.current = false;
-      // Сбрасываем флаг монтирования при переходе на главную
-      // Это позволит снова проверить при следующей загрузке страницы сессии
-      isInitialMountRef.current = true;
-    }
-  }, [currentLocation.pathname]);
 
   return null;
 }
