@@ -74,8 +74,20 @@ export default function SessionsPage() {
   };
 
   const handleSessionCreated = (sessionId) => {
+    console.log('Session created, navigating to:', sessionId);
+    if (!sessionId) {
+      console.error('Session ID is missing in handleSessionCreated');
+      return;
+    }
+    // Закрываем drawer перед навигацией
+    setIsCreateDrawerOpen(false);
+    // Загружаем обновленный список сессий
     loadSessions();
-    navigate(`/session/${sessionId}`);
+    // Небольшая задержка перед навигацией для гарантии закрытия drawer
+    setTimeout(() => {
+      console.log('Navigating to session:', `/session/${sessionId}`);
+      navigate(`/session/${sessionId}`);
+    }, 100);
   };
 
   const handleOpenSession = (sessionId, e) => {

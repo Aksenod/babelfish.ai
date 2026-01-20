@@ -100,8 +100,10 @@ export default function CreateSessionDrawer({ isOpen, onClose, onSessionCreated 
 
     try {
       const session = createSession(trimmedName);
+      console.log('Session created in drawer:', session.id);
+      // Вызываем onSessionCreated - он закроет drawer и выполнит навигацию
       onSessionCreated(session.id);
-      onClose();
+      // onClose() будет вызван в handleSessionCreated
     } catch (err) {
       setError(err.message || 'Ошибка при создании сессии');
       setIsCreating(false);
