@@ -28,19 +28,7 @@ export const getTranslationModel = () => {
  */
 export const getTranscriptionSource = () => {
   const stored = localStorage.getItem('transcription_source');
-
-  // В продакшене по умолчанию используем OpenAI Whisper,
-  // так как локальная модель в браузере может не работать (ограничения WASM/CDN).
-  // Если раньше был выбран local_worker, мягко переключаем на OpenAI.
-  if (import.meta.env.PROD) {
-    if (!stored || stored === 'local_worker') {
-      localStorage.setItem('transcription_source', 'openai_whisper');
-      return 'openai_whisper';
-    }
-    return stored;
-  }
-
-  // В dev по умолчанию оставляем локальную модель для отладки
+  // По умолчанию используем локальную модель (работает и в продакшене)
   return stored || 'local_worker';
 };
 

@@ -14,6 +14,7 @@ import { getSession, updateSession, deleteSession, deleteMessageFromSession } fr
 import {
   getApiKeys,
   getTranslationModel,
+  getTranscriptionSource,
   getVoiceSettings,
   getMaxRecordingDuration,
 } from '../utils/settings';
@@ -933,8 +934,10 @@ function Translator() {
   useEffect(() => {
     const { openai, yandex, google } = getApiKeys();
     const translationModel = getTranslationModel();
+    const transcriptionSource = getTranscriptionSource();
     
-    if (!openai) {
+    // Проверяем OpenAI ключ только если используется OpenAI Whisper для распознавания
+    if (transcriptionSource === 'openai_whisper' && !openai) {
       setIsSettingsOpen(true);
       return;
     }

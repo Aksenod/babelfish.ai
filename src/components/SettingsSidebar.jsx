@@ -10,10 +10,8 @@ const TRANSCRIPTION_SOURCES = [
   { value: 'openai_whisper', label: 'OpenAI Whisper' },
 ];
 
-// В продакшене скрываем локальную модель, чтобы избежать ошибок WASM в браузере.
-const AVAILABLE_TRANSCRIPTION_SOURCES = import.meta.env.PROD
-  ? TRANSCRIPTION_SOURCES.filter((source) => source.value !== 'local_worker')
-  : TRANSCRIPTION_SOURCES;
+// Локальная модель доступна и в продакшене
+const AVAILABLE_TRANSCRIPTION_SOURCES = TRANSCRIPTION_SOURCES;
 
 // Icons
 const SlidersIcon = () => (
@@ -64,17 +62,7 @@ export default function SettingsSidebar() {
     setTranslationModel(localStorage.getItem('translation_model') || 'yandex');
 
     const storedTranscriptionSource = localStorage.getItem('transcription_source');
-    if (import.meta.env.PROD) {
-      // В проде принудительно переключаем local_worker → openai_whisper
-      const effectiveSource =
-        !storedTranscriptionSource || storedTranscriptionSource === 'local_worker'
-          ? 'openai_whisper'
-          : storedTranscriptionSource;
-      setTranscriptionSource(effectiveSource);
-      localStorage.setItem('transcription_source', effectiveSource);
-    } else {
-      setTranscriptionSource(storedTranscriptionSource || 'local_worker');
-    }
+    setTranscriptionSource(storedTranscriptionSource || 'local_worker');
     const savedSentences = parseInt(localStorage.getItem('sentences_on_screen') || '2', 10);
     setSentencesOnScreen([1, 2, 3].includes(savedSentences) ? savedSentences : 2);
     const savedShowOriginal = localStorage.getItem('show_original');
@@ -267,6 +255,11 @@ export default function SettingsSidebar() {
               </svg>
             </div>
           </div>
+          {transcriptionSource === 'local_worker' && (
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Локальная модель работает полностью в браузере, не требует API ключей. Первая загрузка может занять время.
+            </p>
+          )}
         </div>
 
         {/* Display Settings */}
