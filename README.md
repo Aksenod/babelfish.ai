@@ -37,9 +37,9 @@ ALLOWED_ORIGINS=https://aksenod.github.io,https://aksenod.github.io/babelfish.ai
 Далее используйте URL проекта в переменных сборки фронтенда:
 
 ```env
-VITE_YANDEX_PROXY_URL=https://babelfish-ai.vercel.app/api/yandex-translate
-VITE_OPENAI_TRANSCRIBE_URL=https://babelfish-ai.vercel.app/api/openai-transcribe
-VITE_OPENAI_SUMMARY_URL=https://babelfish-ai.vercel.app/api/openai-summary
+VITE_YANDEX_PROXY_URL=https://babelfish-esc23hbh4-aksenods-projects.vercel.app/api/yandex-translate
+VITE_OPENAI_TRANSCRIBE_URL=https://babelfish-esc23hbh4-aksenods-projects.vercel.app/api/openai-transcribe
+VITE_OPENAI_SUMMARY_URL=https://babelfish-esc23hbh4-aksenods-projects.vercel.app/api/openai-summary
 ```
 
 ### 3. Получение API ключей (опционально)

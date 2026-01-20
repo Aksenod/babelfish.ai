@@ -10,6 +10,11 @@ const TRANSCRIPTION_SOURCES = [
   { value: 'openai_whisper', label: 'OpenAI Whisper' },
 ];
 
+// В продакшене скрываем локальную модель, чтобы избежать ошибок WASM в браузере.
+const AVAILABLE_TRANSCRIPTION_SOURCES = import.meta.env.PROD
+  ? TRANSCRIPTION_SOURCES.filter((source) => source.value !== 'local_worker')
+  : TRANSCRIPTION_SOURCES;
+
 // Icons
 const SlidersIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="21" y2="21"/><line x1="4" x2="20" y1="3" y2="3"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>
@@ -57,7 +62,19 @@ export default function SettingsSidebar() {
 
   useEffect(() => {
     setTranslationModel(localStorage.getItem('translation_model') || 'yandex');
-    setTranscriptionSource(localStorage.getItem('transcription_source') || 'local_worker');
+
+    const storedTranscriptionSource = localStorage.getItem('transcription_source');
+    if (import.meta.env.PROD) {
+      // В проде принудительно переключаем local_worker → openai_whisper
+      const effectiveSource =
+        !storedTranscriptionSource || storedTranscriptionSource === 'local_worker'
+          ? 'openai_whisper'
+          : storedTranscriptionSource;
+      setTranscriptionSource(effectiveSource);
+      localStorage.setItem('transcription_source', effectiveSource);
+    } else {
+      setTranscriptionSource(storedTranscriptionSource || 'local_worker');
+    }
     const savedSentences = parseInt(localStorage.getItem('sentences_on_screen') || '2', 10);
     setSentencesOnScreen([1, 2, 3].includes(savedSentences) ? savedSentences : 2);
     const savedShowOriginal = localStorage.getItem('show_original');
@@ -227,7 +244,7 @@ export default function SettingsSidebar() {
               }}
               className="w-full px-3.5 py-2.5 pr-10 rounded-xl ui-glass-panel-thin border border-white/40 text-sm font-medium text-slate-900 bg-white/20 hover:bg-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 focus:bg-white/35 transition-all duration-200 appearance-none cursor-pointer"
             >
-              {TRANSCRIPTION_SOURCES.map((source) => (
+              {AVAILABLE_TRANSCRIPTION_SOURCES.map((source) => (
                 <option key={source.value} value={source.value}>
                   {source.label}
                 </option>

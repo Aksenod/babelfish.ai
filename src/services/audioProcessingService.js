@@ -337,7 +337,10 @@ export const processAudio = async (audioBlob, dependencies) => {
     const translationModel = getTranslationModel();
 
     if (transcriptionSource !== 'local_worker' && !openai) {
-      throw new Error('OpenAI API ключ не настроен. Откройте настройки.');
+      // В продакшене можно работать без локального ключа: используем серверный ключ через Vercel‑прокси.
+      if (!import.meta.env.PROD) {
+        throw new Error('OpenAI API ключ не настроен. Откройте настройки.');
+      }
     }
 
     // Проверяем ключ в зависимости от выбранной модели перевода

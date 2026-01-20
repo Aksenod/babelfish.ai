@@ -3,24 +3,53 @@
  */
 
 const getOpenAiTranscribeUrl = (apiKey) => {
-  if (apiKey) {
-    return 'https://api.openai.com/v1/audio/transcriptions';
-  }
   const proxyUrl = import.meta.env.VITE_OPENAI_TRANSCRIBE_URL;
+  const isProd = import.meta.env.PROD;
+
+  // В продакшене всегда ходим через прокси (Vercel), даже если пользователь ввёл локальный API‑ключ.
+  // Это гарантирует отсутствие CORS‑ошибок и не светит ключи в запросах напрямую к api.openai.com.
+  if (isProd) {
+    if (proxyUrl) {
+      return proxyUrl;
+    }
+    throw new Error('VITE_OPENAI_TRANSCRIBE_URL is not configured for production');
+  }
+
+  // В dev сначала используем прокси, если он настроен.
   if (proxyUrl) {
     return proxyUrl;
   }
+
+  // В dev без прокси можно ходить напрямую в OpenAI, если есть локальный ключ.
+  if (apiKey) {
+    return 'https://api.openai.com/v1/audio/transcriptions';
+  }
+
   throw new Error('OpenAI API key is required or VITE_OPENAI_TRANSCRIBE_URL is not configured');
 };
 
 const getOpenAiSummaryUrl = (apiKey) => {
-  if (apiKey) {
-    return 'https://api.openai.com/v1/chat/completions';
-  }
   const proxyUrl = import.meta.env.VITE_OPENAI_SUMMARY_URL;
+  const isProd = import.meta.env.PROD;
+
+  // В продакшене всегда используем прокси (Vercel) для summary.
+  if (isProd) {
+    if (proxyUrl) {
+      return proxyUrl;
+    }
+    throw new Error('VITE_OPENAI_SUMMARY_URL is not configured for production');
+  }
+
+  // В dev сначала используем прокси, если есть.
   if (proxyUrl) {
     return proxyUrl;
   }
+
+  // В dev без прокси можно ходить напрямую, если есть локальный ключ.
+  if (apiKey) {
+    return 'https://api.openai.com/v1/chat/completions';
+  }
+
   throw new Error('OpenAI API key is required or VITE_OPENAI_SUMMARY_URL is not configured');
 };
 

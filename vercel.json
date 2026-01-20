@@ -9,11 +9,5 @@
     "api/openai-summary.js": {
       "maxDuration": 60
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/yandex-translate",
-      "destination": "/api/yandex-translate.js"
-    }
-  ]
+  }
 }
