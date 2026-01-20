@@ -30,7 +30,8 @@ const applyCors = (req, res) => {
   
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+  // Для FormData запросов нужно разрешить больше заголовков
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 часа
 };
@@ -44,13 +45,15 @@ const readRequestBody = async (req) => {
 };
 
 export default async function handler(req, res) {
-  // Применяем CORS заголовки ДО проверки метода
-  applyCors(req, res);
-
-  // Обработка preflight запроса
+  // Обработка preflight запроса ПЕРВОЙ, до применения CORS
   if (req.method === 'OPTIONS') {
-    return res.status(200).json({ message: 'OK' });
+    applyCors(req, res);
+    // Для preflight важно вернуть 204 No Content или 200 с пустым телом
+    return res.status(204).end();
   }
+
+  // Применяем CORS заголовки для всех остальных запросов
+  applyCors(req, res);
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
