@@ -78,7 +78,16 @@ export default function SessionsPage() {
     navigate(`/session/${sessionId}`);
   };
 
-  const handleOpenSession = (sessionId) => {
+  const handleOpenSession = (sessionId, e) => {
+    // Предотвращаем распространение события, если оно было передано
+    if (e) {
+      e.stopPropagation();
+    }
+    if (!sessionId) {
+      console.error('Session ID is missing', sessionId);
+      return;
+    }
+    console.log('Opening session:', sessionId);
     navigate(`/session/${sessionId}`);
   };
 
@@ -198,16 +207,27 @@ export default function SessionsPage() {
             return (
               <div
                 key={session.id}
-                onClick={() => handleOpenSession(session.id)}
+                onClick={(e) => {
+                  // Проверяем, что клик не был по кнопке или интерактивному элементу
+                  const target = e.target;
+                  const clickedButton = target.closest('button');
+                  const clickedInteractive = target.closest('[role="button"]');
+                  
+                  // Если клик был по кнопке или интерактивному элементу, не обрабатываем
+                  if (!clickedButton && !clickedInteractive) {
+                    handleOpenSession(session.id, e);
+                  }
+                }}
                 onTouchEnd={(e) => {
                   // Обработка touch событий для мобильных устройств
                   // Проверяем, что это не клик по кнопке внутри
                   const target = e.target;
                   const clickedButton = target.closest('button');
+                  
                   // Если клик был по кнопке, не обрабатываем здесь (кнопка сама обработает)
                   if (!clickedButton) {
                     e.preventDefault();
-                    handleOpenSession(session.id);
+                    handleOpenSession(session.id, e);
                   }
                 }}
                 className="group relative p-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-xl cursor-pointer transition-all touch-manipulation hover:bg-white hover:border-slate-300 hover:shadow-md"
