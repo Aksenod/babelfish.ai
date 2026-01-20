@@ -4,7 +4,7 @@ import * as onnxCommon from 'onnxruntime-common';
 // onnxruntime-web UMD build relies on this global.
 import 'onnxruntime-common/dist/ort-common.min.js';
 
-const onnxCommonModule = onnxCommon.default ?? onnxCommon;
+const onnxCommonModule = onnxCommon;
 
 // Ensure self.ort is available before onnxruntime-web loads
 if (!self.ort || typeof self.ort.registerBackend !== 'function') {
